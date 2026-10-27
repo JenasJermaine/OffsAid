@@ -1,0 +1,21 @@
+name,country,licence_number,phone,licence_status,source
+Amina Wanjiku,Kenya,KEFWA-SIM-001,254700000001,licensed,simulated-seed
+Amina Wanjiku,England,FIFA-SIM-101,447700900001,licensed,simulated-seed
+James Otieno,Kenya,KEFWA-SIM-002,254700000002,licensed,simulated-seed
+Maria Santos,Portugal,FIFA-SIM-102,351910000001,licensed,simulated-seed
+Kwame Mensah,Ghana,GFA-SIM-010,233240000001,licensed,simulated-seed
+Li Wei,China,CFA-SIM-020,8613800000001,licensed,simulated-seed
+Fatima Al Hassan,United Arab Emirates,UAE-SIM-030,971500000001,licensed,simulated-seed
+Johan Berg,Finland,SPL-SIM-040,358401000001,licensed,simulated-seed
+Siti Rahma,Malaysia,FAM-SIM-050,601200000001,licensed,simulated-seed
+Andi Pratama,Indonesia,PSSI-SIM-060,6281200000001,licensed,simulated-seed
+David Kimani,Kenya,KEFWA-SIM-003,254700000003,licensed,simulated-seed
+David Kimani,United States,USSF-SIM-070,12025550123,licensed,simulated-seed
+Elena Rossi,Italy,FIGC-SIM-080,393200000001,licensed,simulated-seed
+Omar Farouk,Egypt,EFA-SIM-090,201000000001,licensed,simulated-seed
+Thandiwe Nkosi,South Africa,SAFA-SIM-100,278200000001,licensed,simulated-seed
+Pierre Dubois,France,FFF-SIM-110,33601000001,licensed,simulated-seed
+Chen Wei,Singapore,FAS-SIM-120,6590000001,licensed,simulated-seed
+Grace Atieno,Kenya,KEFWA-SIM-004,,not_renewed,simulated-seed
+Samuel Kariuki,Kenya,KEFWA-SIM-005,254700000005,licensed,simulated-seed
+Nora Lindqvist,Sweden,SVFF-SIM-130,46700000001,licensed,simulated-seed
