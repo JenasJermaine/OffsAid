@@ -1,0 +1,26 @@
+# systemd unit for the OffsAid API. Install:
+#   sudo cp deploy/offsaid.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now offsaid
+[Unit]
+Description=OffsAid API (FastAPI on Uvicorn)
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=offsaid
+Group=offsaid
+WorkingDirectory=/opt/offsaid
+EnvironmentFile=/opt/offsaid/.env
+# One worker: startup seeds the agent table when it is empty, and parallel
+# workers would race on that insert.
+ExecStart=/opt/offsaid/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 1 --proxy-headers
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

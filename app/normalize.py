@@ -55,3 +55,32 @@ def normalize_country(country: str | None) -> str:
     if not country:
         return ""
     return re.sub(r"\s+", " ", country.strip().lower())
+
+
+def normalize_email(email: str | None) -> str:
+    if not email:
+        return ""
+    return email.strip().lower()
+
+
+def email_domain(email: str | None) -> str:
+    email = normalize_email(email)
+    if "@" not in email:
+        return ""
+    return email.rsplit("@", 1)[1].strip(".")
+
+
+def normalize_domain(value: str | None) -> str:
+    """Bare host from a URL or domain: 'https://www.Club.com/x' -> 'club.com'."""
+    if not value:
+        return ""
+    host = re.sub(r"^[a-z][a-z0-9+.-]*://", "", value.strip().lower())
+    host = host.split("/", 1)[0].split(":", 1)[0].strip(".")
+    return host[4:] if host.startswith("www.") else host
+
+
+def normalize_account(account: str | None) -> str:
+    """Payment account / till / paybill: keep letters and digits only."""
+    if not account:
+        return ""
+    return re.sub(r"[^0-9A-Za-z]", "", account).upper()
