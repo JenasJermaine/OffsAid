@@ -1,7 +1,7 @@
 # OffsAid
 
 OffsAid helps football players check recruitment offers. This repository currently holds
-**Part 1: agent verification**. You give it an agent's name, phone number or licence
+**Step 1: agent verification** and **Step 2: document claim checks**. You give it an agent's name, phone number or licence
 number, and it checks them against the licensed-agent list. It returns one of:
 
 - `found`: the agent is on the licensed list.
@@ -12,6 +12,52 @@ number, and it checks them against the licensed-agent list. It returns one of:
 Every answer carries the disclaimer that a licensed agent can still make a false claim, so
 "licensed" never means the offer is real. Each lookup is logged as a salted hash, never the
 raw name or number.
+
+## Step 2: document claim checks
+
+`POST /v1/verify-document` accepts a PDF, PNG, or JPEG plus at least one Step 1 agent
+identifier as multipart form data. It runs the existing agent check first, then returns that
+result alongside structured document claims and evidence checks. The existing
+`POST /v1/agent-check` route is unchanged. Document checks assess claims and available
+evidence; they do not prove authenticity or label a document fake. Missing evidence is
+reported as `not_confirmed`.
+
+The document route enforces a 20 MiB and 20-page limit. PDFs use PyMuPDF text and
+metadata extraction; images use pytesseract when the system Tesseract executable is
+installed. Image/document hashing, contact parsing, and multipart upload support require
+the additional packages in `requirements.txt`. Domain registration can use the fixed
+RDAP endpoint when `NETWORK_CHECKS_ENABLED=true`; deterministic synthetic domain data
+takes priority. Club, league, and staff checks currently use explicitly synthetic local
+evidence, not real-world verification.
+
+Structured vision extraction is optional and uses one request per document only when
+`ANTHROPIC_API_KEY` is configured. Without the key, the local labeled-field extractor
+runs without an API call. The vision prompt treats document text as untrusted input and
+the app rejects source quotes that do not occur in selectable PDF text. The model name
+is configurable with `LLM_MODEL`.
+
+For screenshot OCR, install the Tesseract executable as well as the Python package. On
+macOS, use `brew install tesseract`; on Debian/Ubuntu, use `sudo apt install tesseract-ocr`.
+Without the executable, images are accepted but their text checks return `not_confirmed`.
+
+Generate the synthetic Step 2 PDFs with:
+
+```bash
+venv/bin/python scripts/generate_synthetic_documents.py
+```
+
+The generator writes clearly marked files to `synthetic_data/documents/`. It includes the
+ten requested scenarios and three legitimate hard negatives. Run the tests with
+`venv/bin/python -m pytest -q`.
+
+To submit a generated document through the API, provide at least one Step 1 identifier:
+
+```bash
+curl -s http://127.0.0.1:8000/v1/verify-document \
+  -F 'name=James Otieno' \
+  -F 'claimed_country=Kenya' \
+  -F 'document=@synthetic_data/documents/01_clean.pdf;type=application/pdf'
+```
 
 The agent list in `data/licensed_agents.simulated.csv` is **simulated** demo data. Replace
 it with KEFWA's list before real use.
@@ -128,7 +174,8 @@ The tests use in-memory SQLite, so they need no database server.
 ## Layout
 
 ```
-app/main.py          FastAPI app: /health, /v1/agent-check
+app/main.py          FastAPI app: /health, /v1/agent-check, /v1/verify-document
+app/document_verification.py  Step 2 extraction, evidence checks, and similarity
 app/matching.py      RapidFuzz matching (licence, then phone, then name)
 app/normalize.py     name/phone/licence normalisation
 app/seed.py          CSV loader
