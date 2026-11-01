@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OffsAid — agent check</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f4f1ea;
+        --ink: #1c1917;
+        --muted: #57534e;
+        --card: #fffaf3;
+        --line: #e7e0d4;
+        --accent: #0f766e;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: Georgia, "Times New Roman", serif;
+        background: var(--bg);
+        color: var(--ink);
+      }
+      main {
+        max-width: 40rem;
+        margin: 0 auto;
+        padding: 2.5rem 1.25rem 4rem;
+      }
+      h1 { font-size: 1.75rem; margin: 0 0 0.4rem; }
+      p.lead { color: var(--muted); margin: 0 0 1.5rem; line-height: 1.45; }
+      form, .result {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 1.25rem;
+      }
+      label {
+        display: block;
+        font-size: 0.85rem;
+        margin: 0.75rem 0 0.3rem;
+      }
+      input {
+        width: 100%;
+        padding: 0.6rem 0.7rem;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        font: inherit;
+      }
+      button {
+        margin-top: 1rem;
+        background: var(--accent);
+        color: white;
+        border: 0;
+        border-radius: 8px;
+        padding: 0.7rem 1rem;
+        font: inherit;
+        cursor: pointer;
+      }
+      button:disabled { opacity: 0.6; cursor: wait; }
+      .result { margin-top: 1rem; display: none; }
+      .result.show { display: block; }
+      .status { font-weight: 700; text-transform: capitalize; }
+      .found { color: #166534; }
+      .possible_match { color: #a16207; }
+      .not_found { color: #b91c1c; }
+      .disclaimer { font-size: 0.9rem; color: var(--muted); margin-top: 0.75rem; }
+      dl { margin: 0.75rem 0 0; }
+      dt { color: var(--muted); font-size: 0.8rem; }
+      dd { margin: 0 0 0.5rem; }
+      .error { color: #b91c1c; }
+      h2 { font-size: 1.2rem; margin: 2rem 0 0.5rem; }
+      #document-result { white-space: pre-wrap; overflow-wrap: anywhere; font: 0.8rem/1.45 ui-monospace, monospace; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>OffsAid agent check</h1>
+      <p class="lead">
+        Look up a claimed football agent against the licensed list.
+        Licensed never means the offer is real.
+      </p>
+      <form id="check-form">
+        <label for="name">Name</label>
+        <input id="name" name="name" autocomplete="name" placeholder="James Otieno" />
+        <label for="phone">Phone</label>
+        <input id="phone" name="phone" autocomplete="tel" placeholder="254700000002" />
+        <label for="licence_number">Licence number</label>
+        <input id="licence_number" name="licence_number" placeholder="KEFWA-SIM-002" />
+        <label for="claimed_country">Claimed country</label>
+        <input id="claimed_country" name="claimed_country" placeholder="Kenya" />
+        <button type="submit">Check agent</button>
+      </form>
+      <div class="result" id="result"></div>
+      <h2>Check a recruitment document</h2>
+      <form id="document-form" enctype="multipart/form-data">
+        <label for="document-name">Agent name</label>
+        <input id="document-name" name="name" autocomplete="name" placeholder="James Otieno" />
+        <label for="document-phone">Agent phone</label>
+        <input id="document-phone" name="phone" autocomplete="tel" placeholder="254700000002" />
+        <label for="document-licence">Agent licence number</label>
+        <input id="document-licence" name="licence_number" placeholder="KEFWA-SIM-002" />
+        <label for="document-country">Claimed agent country</label>
+        <input id="document-country" name="claimed_country" placeholder="Kenya" />
+        <label for="document-file">Recruitment document (PDF, PNG or JPEG)</label>
+        <input id="document-file" name="document" type="file" accept="application/pdf,image/png,image/jpeg" required />
+        <button type="submit">Check document</button>
+      </form>
+      <div class="result" id="document-result"></div>
+    </main>
+    <script>
+      const form = document.getElementById("check-form");
+      const result = document.getElementById("result");
+
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const data = Object.fromEntries(new FormData(form).entries());
+        const payload = {};
+        for (const [key, value] of Object.entries(data)) {
+          const trimmed = String(value).trim();
+          if (trimmed) payload[key] = trimmed;
+        }
+        result.classList.add("show");
+        form.querySelector("button").disabled = true;
+        try {
+          const response = await fetch("/v1/agent-check", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          const body = await response.json();
+          if (!response.ok) {
+            const detail = Array.isArray(body.detail)
+              ? body.detail.map((item) => item.msg || JSON.stringify(item)).join(" ")
+              : body.detail || "Request failed";
+            result.innerHTML = `<p class="error">${detail}</p>`;
+            return;
+          }
+          const match = body.match
+            ? `<dl>
+                <dt>Name</dt><dd>${body.match.name}</dd>
+                <dt>Country</dt><dd>${body.match.country}</dd>
+                <dt>Licence</dt><dd>${body.match.licence_number} (${body.match.licence_status})</dd>
+                <dt>Source</dt><dd>${body.match.source}</dd>
+              </dl>`
+            : "";
+          result.innerHTML = `
+            <p class="status ${body.status}">${body.status.replace("_", " ")}</p>
+            <p>${body.message}</p>
+            ${match}
+            <p class="disclaimer">${body.disclaimer}</p>
+          `;
+        } catch (error) {
+          result.innerHTML = `<p class="error">${error}</p>`;
+        } finally {
+          form.querySelector("button").disabled = false;
+        }
+      });
+
+      const documentForm = document.getElementById("document-form");
+      const documentResult = document.getElementById("document-result");
+      documentForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const formData = new FormData(documentForm);
+        for (const [key, value] of formData.entries()) {
+          if (typeof value === "string" && !value.trim()) formData.delete(key);
+        }
+        documentResult.classList.add("show");
+        documentResult.textContent = "Checking agent and document claims...";
+        documentForm.querySelector("button").disabled = true;
+        try {
+          const response = await fetch("/v1/verify-document", { method: "POST", body: formData });
+          const body = await response.json();
+          if (!response.ok) throw new Error(body.detail || "Document check failed");
+          const summary = {
+            agent_check: body.agent_check,
+            document_status: body.document_verification.document_status,
+            summary: body.document_verification.summary,
+            checks: body.document_verification.checks,
+          };
+          documentResult.textContent = JSON.stringify(summary, null, 2);
+        } catch (error) {
+          documentResult.textContent = String(error);
+        } finally {
+          documentForm.querySelector("button").disabled = false;
+        }
+      });
+    </script>
+  </body>
+</html>
