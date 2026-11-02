@@ -1,6 +1,7 @@
 """Tables for the later stages (cases, cross-case linking, KEFWA review queue).
 
-Parked: nothing imports this module yet, so Part 1 creates only the agent-check tables.
+Parked: nothing imports this module yet. InboundMessage and WebCheckLog moved to
+app/models.py when the WhatsApp webhook and the web-checking agent (Step 3) went live.
 Import it from app.db.init_db() when the WhatsApp pipeline is switched on; on Postgres
 that also needs the pgvector extension (CREATE EXTENSION vector).
 """
@@ -45,18 +46,6 @@ class TextVector(TypeDecorator):
 
     def process_result_value(self, value, dialect):
         return None if value is None else [float(v) for v in value]
-
-
-class InboundMessage(Base):
-    """One row per WhatsApp message id, so Meta's webhook retries are processed once."""
-
-    __tablename__ = "inbound_messages"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    wamid: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
-    received_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
 
 
 class Case(Base):
@@ -117,20 +106,6 @@ class ReviewItem(Base):
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     case: Mapped[Case | None] = relationship()
-
-
-class WebCheckLog(Base):
-    """Every search, page and lookup the web-checking agent made, for KEFWA to audit."""
-
-    __tablename__ = "web_check_logs"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
-    case_id: Mapped[int | None] = mapped_column(ForeignKey("cases.id"), nullable=True, index=True)
-    tool: Mapped[str] = mapped_column(String(32), nullable=False)
-    detail: Mapped[str] = mapped_column(Text, nullable=False)
 
 
 class RegistrationWindow(Base):

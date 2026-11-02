@@ -69,7 +69,7 @@
       dd { margin: 0 0 0.5rem; }
       .error { color: #b91c1c; }
       h2 { font-size: 1.2rem; margin: 2rem 0 0.5rem; }
-      #document-result { white-space: pre-wrap; overflow-wrap: anywhere; font: 0.8rem/1.45 ui-monospace, monospace; }
+      #document-result, #web-result { white-space: pre-wrap; overflow-wrap: anywhere; font: 0.8rem/1.45 ui-monospace, monospace; }
     </style>
   </head>
   <body>
@@ -92,20 +92,18 @@
       </form>
       <div class="result" id="result"></div>
       <h2>Check a recruitment document</h2>
+      <p class="lead">
+        Upload an offer letter, contract or screenshot. We check what it claims against public
+        sources and flag inconsistencies. Not confirmed never means fake.
+      </p>
       <form id="document-form" enctype="multipart/form-data">
-        <label for="document-name">Agent name</label>
-        <input id="document-name" name="name" autocomplete="name" placeholder="James Otieno" />
-        <label for="document-phone">Agent phone</label>
-        <input id="document-phone" name="phone" autocomplete="tel" placeholder="254700000002" />
-        <label for="document-licence">Agent licence number</label>
-        <input id="document-licence" name="licence_number" placeholder="KEFWA-SIM-002" />
-        <label for="document-country">Claimed agent country</label>
-        <input id="document-country" name="claimed_country" placeholder="Kenya" />
         <label for="document-file">Recruitment document (PDF, PNG or JPEG)</label>
         <input id="document-file" name="document" type="file" accept="application/pdf,image/png,image/jpeg" required />
         <button type="submit">Check document</button>
       </form>
       <div class="result" id="document-result"></div>
+      <h2 id="web-heading" style="display: none">Club website check</h2>
+      <div class="result" id="web-result"></div>
     </main>
     <script>
       const form = document.getElementById("check-form");
@@ -161,29 +159,70 @@
       documentForm.addEventListener("submit", async (event) => {
         event.preventDefault();
         const formData = new FormData(documentForm);
-        for (const [key, value] of formData.entries()) {
-          if (typeof value === "string" && !value.trim()) formData.delete(key);
-        }
         documentResult.classList.add("show");
-        documentResult.textContent = "Checking agent and document claims...";
+        documentResult.textContent = "Checking the document. This can take a minute...";
+        webHeading.style.display = "none";
+        webResult.classList.remove("show");
         documentForm.querySelector("button").disabled = true;
         try {
-          const response = await fetch("/v1/verify-document", { method: "POST", body: formData });
+          const response = await fetch("/v1/document-check", { method: "POST", body: formData });
           const body = await response.json();
           if (!response.ok) throw new Error(body.detail || "Document check failed");
           const summary = {
-            agent_check: body.agent_check,
-            document_status: body.document_verification.document_status,
-            summary: body.document_verification.summary,
-            checks: body.document_verification.checks,
+            needs_review: body.needs_review,
+            summary: body.summary,
+            checks: body.checks,
+            pending_checks: body.pending_checks,
+            extraction_method: body.extraction_method,
+            extraction_notes: body.extraction_notes,
+            disclaimer: body.disclaimer,
           };
           documentResult.textContent = JSON.stringify(summary, null, 2);
+          if (body.pending_checks.length) {
+            runWebCheck(body.fields, body.league_window_missing);
+          }
         } catch (error) {
           documentResult.textContent = String(error);
         } finally {
           documentForm.querySelector("button").disabled = false;
         }
       });
+
+      const webHeading = document.getElementById("web-heading");
+      const webResult = document.getElementById("web-result");
+      const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+      async function runWebCheck(fields, windowMissing) {
+        webHeading.style.display = "block";
+        webResult.classList.add("show");
+        webResult.textContent = "Checking the club's website. This can take a few minutes...";
+        try {
+          const started = await fetch("/v1/web-check", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ fields, window_missing: windowMissing }),
+          });
+          const job = await started.json();
+          if (!started.ok) throw new Error(job.detail || "Web check could not start");
+          for (let polls = 0; polls < 120; polls++) {
+            await sleep(3000);
+            const response = await fetch(`/v1/web-checks/${job.id}`);
+            const body = await response.json();
+            const steps = body.log.map((entry) => `${entry.tool}: ${entry.detail.split("\n")[0]}`);
+            if (body.status === "running") {
+              webResult.textContent = "Checking the club's website...\n\n" + steps.join("\n");
+              continue;
+            }
+            webResult.textContent = JSON.stringify(
+              { status: body.status, ...body.result, steps }, null, 2,
+            );
+            return;
+          }
+          webResult.textContent = "The web check is still running. Look it up later at /v1/web-checks/" + job.id;
+        } catch (error) {
+          webResult.textContent = String(error);
+        }
+      }
     </script>
   </body>
 </html>
