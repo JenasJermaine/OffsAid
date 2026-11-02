@@ -1,0 +1,12 @@
+country,association,league,season,window,opening_date,closing_date,source_url,checked_at,simulated
+Finland,Football Association of Finland,Veikkausliiga,2026,mid-season,2026-07-01,2026-07-31,,2026-11-02,true
+Finland,Football Association of Finland,Veikkausliiga,2027,main,2027-02-01,2027-04-30,,2026-11-02,true
+Finland,Football Association of Finland,Veikkausliiga,2027,mid-season,2027-07-01,2027-07-31,,2026-11-02,true
+Malaysia,Football Association of Malaysia,Malaysia Super League,2026-27,main,2026-06-01,2026-08-31,,2026-11-02,true
+Malaysia,Football Association of Malaysia,Malaysia Super League,2026-27,mid-season,2027-01-05,2027-02-01,,2026-11-02,true
+Indonesia,Football Association of Indonesia,Super League,2026-27,main,2026-06-15,2026-09-15,,2026-11-02,true
+Indonesia,Football Association of Indonesia,Super League,2026-27,mid-season,2027-01-05,2027-02-05,,2026-11-02,true
+United Arab Emirates,UAE Football Association,UAE Pro League,2026-27,main,2026-07-01,2026-09-30,,2026-11-02,true
+United Arab Emirates,UAE Football Association,UAE Pro League,2026-27,mid-season,2027-01-02,2027-01-31,,2026-11-02,true
+England,The Football Association,Premier League,2026-27,main,2026-06-15,2026-09-01,,2026-11-02,true
+England,The Football Association,Premier League,2026-27,mid-season,2027-01-01,2027-02-01,,2026-11-02,true

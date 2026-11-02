@@ -29,12 +29,16 @@ class Settings(BaseSettings):
 
     # Web-checking agent limits, per case
     web_agent_max_tool_calls: int = 12
-    web_agent_timeout_seconds: int = 90
+    web_agent_timeout_seconds: int = 180
+    # "low" gives fewer, more consolidated tool calls; raise it if checks miss evidence.
+    web_agent_effort: str = "low"
 
     # Outbound lookups (RDAP, Wikidata). Off in tests.
     network_checks_enabled: bool = True
     rdap_base_url: str = "https://rdap.org/domain/"
     new_domain_days: int = 180
+    # Wikimedia blocks requests whose User-Agent has no contact URL or email.
+    lookup_user_agent: str = "OffsAid/0.1 (https://github.com/JenasJermaine/OffsAid)"
 
     # Cross-case linking
     link_text_similarity: float = 0.85
