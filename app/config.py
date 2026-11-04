@@ -40,6 +40,9 @@ class Settings(BaseSettings):
     # Wikimedia blocks requests whose User-Agent has no contact URL or email.
     lookup_user_agent: str = "OffsAid/0.1 (https://github.com/JenasJermaine/OffsAid)"
 
+    # Scam-language classifier folder. Missing directory: rules_only mode (fee rule).
+    offsaid_model_dir: str = "models/offsaid_classifier_v4"
+
     # Cross-case linking
     link_text_similarity: float = 0.85
     link_phash_max_distance: int = 6

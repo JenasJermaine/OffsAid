@@ -13,7 +13,8 @@ Group=offsaid
 WorkingDirectory=/opt/offsaid
 EnvironmentFile=/opt/offsaid/.env
 # One worker: startup seeds the agent table when it is empty, and parallel
-# workers would race on that insert.
+# workers would race on that insert. The scam-language model also loads once
+# per process (about 1 to 1.5 GB), so extra workers would not fit a 2 GB host.
 ExecStart=/opt/offsaid/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 1 --proxy-headers
 Restart=on-failure
 RestartSec=5

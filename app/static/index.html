@@ -69,7 +69,7 @@
       dd { margin: 0 0 0.5rem; }
       .error { color: #b91c1c; }
       h2 { font-size: 1.2rem; margin: 2rem 0 0.5rem; }
-      #document-result, #web-result { white-space: pre-wrap; overflow-wrap: anywhere; font: 0.8rem/1.45 ui-monospace, monospace; }
+      #document-result, #web-result, #wording-result { white-space: pre-wrap; overflow-wrap: anywhere; font: 0.8rem/1.45 ui-monospace, monospace; }
     </style>
   </head>
   <body>
@@ -104,6 +104,18 @@
       <div class="result" id="document-result"></div>
       <h2 id="web-heading" style="display: none">Club website check</h2>
       <div class="result" id="web-result"></div>
+      <h2>Check a chat screenshot</h2>
+      <p class="lead">
+        Upload a screenshot of a chat with a recruitment agent. We read the other party's
+        messages and list wording patterns, with the line each pattern came from.
+        This is not a conclusion about the person who wrote them.
+      </p>
+      <form id="wording-form">
+        <label for="screenshot-file">Chat screenshot (PNG or JPEG)</label>
+        <input id="screenshot-file" name="screenshot" type="file" accept="image/png,image/jpeg" required />
+        <button type="submit">Check wording</button>
+      </form>
+      <div class="result" id="wording-result"></div>
     </main>
     <script>
       const form = document.getElementById("check-form");
@@ -223,6 +235,33 @@
           webResult.textContent = String(error);
         }
       }
+
+      const wordingForm = document.getElementById("wording-form");
+      const wordingResult = document.getElementById("wording-result");
+      wordingForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const formData = new FormData(wordingForm);
+        wordingResult.classList.add("show");
+        wordingResult.textContent = "Reading the screenshot...";
+        wordingForm.querySelector("button").disabled = true;
+        try {
+          const response = await fetch("/v1/scam-language/screenshot", { method: "POST", body: formData });
+          const body = await response.json();
+          if (!response.ok) throw new Error(body.detail || "Wording check failed");
+          const read = (body.agent_messages || []).map((message) => message.text).filter(Boolean);
+          const sources = (body.flags || []).map((flag) =>
+            flag.label + ": " + (flag.source === "rule" ? "fee rule" : "wording model")
+          );
+          const extra = [];
+          if (read.length) extra.push("What we read from the other party:\n" + read.join("\n"));
+          if (sources.length) extra.push(sources.join("\n"));
+          wordingResult.textContent = [body.report_text, ...extra].filter(Boolean).join("\n\n");
+        } catch (error) {
+          wordingResult.textContent = String(error);
+        } finally {
+          wordingForm.querySelector("button").disabled = false;
+        }
+      });
     </script>
   </body>
 </html>

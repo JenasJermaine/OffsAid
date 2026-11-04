@@ -20,7 +20,7 @@ from app.web_agent import ClaimRow, LogEntry, OfficialContact, WebCheckResult
 from app.whatsapp import Media
 
 LETTERS_DIR = Path(__file__).resolve().parents[1] / "data" / "test_letters"
-MANIFEST = json.loads((LETTERS_DIR / "manifest.json").read_text())
+MANIFEST = json.loads((LETTERS_DIR / "manifest.json").read_text(encoding="utf-8"))
 LETTERS = {letter["file"]: letter for letter in MANIFEST["letters"]}
 SCAM = "03_scam_hjk_lookalike_domain.pdf"
 PLAYER = "254700000001"
@@ -87,6 +87,7 @@ def test_document_gets_an_ack_then_the_report(client, whatsapp) -> None:
     assert bodies[0] == webhook.report.ACK
     assert "*OffsAid document check*" in bodies[1]
     assert "EUR 450" in bodies[1]  # the payment request, found even without the model
+    assert "*Wording patterns in the agent's messages*" not in bodies[1]
     assert len(bodies) == 2  # no API key, so no web check
 
 
@@ -94,6 +95,27 @@ def test_meta_retries_are_processed_once(client, whatsapp) -> None:
     _post(client, _payload(_document("wamid.same")))
     _post(client, _payload(_document("wamid.same")))
     assert sum(body == webhook.report.ACK for _, body in whatsapp.sent) == 1
+
+
+def test_image_reply_includes_the_wording_section(client, whatsapp) -> None:
+    whatsapp.media = Media(
+        (LETTERS_DIR / "08_whatsapp_screenshot_paybill.png").read_bytes(), "image/png"
+    )
+    message = {
+        "from": PLAYER,
+        "id": "wamid.img",
+        "type": "image",
+        "image": {"id": "media-1", "mime_type": "image/png"},
+    }
+    assert _post(client, _payload(message)).status_code == 200
+    bodies = [body for to, body in whatsapp.sent if to == PLAYER]
+    assert bodies[0] == webhook.report.ACK
+    assert "*OffsAid document check*" in bodies[1]
+    wording = bodies[1].split("*Wording patterns in the agent's messages*", 1)[1]
+    assert "could not read the chat" in wording  # no API key, so the bubbles were not transcribed
+    assert "scam" not in wording.lower()
+    assert "safe" not in wording.lower()
+    assert len(bodies) == 2
 
 
 def test_text_and_unsupported_files_get_guidance(client, whatsapp) -> None:

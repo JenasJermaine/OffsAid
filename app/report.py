@@ -21,6 +21,19 @@ FOOTER = (
     "'Not confirmed' does not mean fake. The safest check is to contact the club using the details "
     "on its official website. If you are unsure, contact KEFWA before you pay or travel."
 )
+WORDING_HEADING = "*Wording patterns in the agent's messages*"
+WORDING_UNAVAILABLE = "We could not read the chat in this image, so this check did not run."
+WORDING_NO_AGENT_TEXT = "No agent text found in this screenshot."
+WORDING_NONE_FOUND = (
+    "None of the known wording patterns were found in the agent's messages. "
+    "That is not a judgement that the offer is genuine."
+)
+WORDING_RULES_ONLY = (
+    "The wording model is not loaded. Only the fee-wording rule ran, so other patterns are not covered here."
+)
+WORDING_PATTERNS = (
+    "These lines are wording patterns. They are not a conclusion about the person who wrote them."
+)
 
 LABELS = {
     "sender_email_domain": "Sender email",
@@ -72,6 +85,38 @@ def document_report(response: DocumentCheckResponse, web_check_running: bool = F
     if web_check_running:
         parts.append("We are now checking the club's own website. We will send a second message when that is done.")
     parts.append(FOOTER)
+    return "\n\n".join(parts)
+
+
+def wording_report(result: dict) -> str:
+    """The wording section of the evidence report.
+
+    Quotes and plain-language meanings only. Scores stay out of this text: a rule
+    flag's 0.5 is a placeholder, and model scores are not a measure of fraud.
+    An empty flag list is never written up as the person being genuine.
+    """
+    parts = [WORDING_HEADING]
+    if result.get("note"):
+        parts.append(result["note"])
+    if result.get("unavailable"):
+        parts.append(WORDING_UNAVAILABLE)
+        return "\n\n".join(parts)
+    if result.get("messages_checked", 0) == 0:
+        parts.append(WORDING_NO_AGENT_TEXT)
+        return "\n\n".join(parts)
+    if result.get("mode") == "rules_only":
+        parts.append(WORDING_RULES_ONLY)
+    flags = result.get("flags") or []
+    if not flags:
+        parts.append(WORDING_NONE_FOUND)
+        return "\n\n".join(parts)
+    lines = []
+    for flag in flags:
+        text = flag.get("quote") or ""
+        shown = text[:MAX_QUOTE] + ("..." if len(text) > MAX_QUOTE else "")
+        lines.append(f'- "{shown}"\n  {flag.get("meaning", "")}')
+    parts.append("\n".join(lines))
+    parts.append(WORDING_PATTERNS)
     return "\n\n".join(parts)
 
 

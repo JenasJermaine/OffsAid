@@ -17,7 +17,7 @@ from app.document_schemas import DocumentFields
 from app.lookups import ClubFacts, DomainRegistration
 from app.web_agent import claims_to_check, fetch_page, run_web_check
 
-MANIFEST = json.loads((Path(__file__).resolve().parents[1] / "data" / "test_letters" / "manifest.json").read_text())
+MANIFEST = json.loads((Path(__file__).resolve().parents[1] / "data" / "test_letters" / "manifest.json").read_text(encoding="utf-8"))
 LETTERS = {letter["file"]: letter for letter in MANIFEST["letters"]}
 HJK_SCAM = DocumentFields.model_validate(LETTERS["03_scam_hjk_lookalike_domain.pdf"]["expected_fields"])
 KUPS_TRIAL = DocumentFields.model_validate(LETTERS["01_genuine_trial_invitation_kups.pdf"]["expected_fields"])

@@ -5,6 +5,7 @@ POST /webhook  Incoming messages. Signed by Meta (X-Hub-Signature-256), answered
                the work runs in the background:
                  1. "checking, this can take a minute" reply
                  2. document check (Step 2) -> first report
+                    images also get the wording section (other party's messages only)
                  3. web-checking agent (Step 3) -> second report, when the document names a club
 Text messages get a short explanation of what to send. Each message id is processed once,
 because Meta retries webhooks.
@@ -26,6 +27,7 @@ from app.db import SessionLocal
 from app.document_checks import check_document, window_missing
 from app.document_extraction import SUPPORTED_TYPES, UnsafeDocument, UnsupportedDocument
 from app.hashing import hash_lookup_value
+from app.scam_runtime import check_screenshot
 from app.models import InboundMessage
 from app.web_agent import claims_to_check
 from app.web_check_jobs import create_job, run_job
@@ -94,6 +96,22 @@ def _send(to: str, body: str) -> None:
         log.exception("Could not send a WhatsApp reply")
 
 
+def _wording_reply(data: bytes, mime_type: str) -> str:
+    """Wording section for one image. A failure here still leaves the document report."""
+    try:
+        outcome = check_screenshot(data, mime_type)
+    except Exception:
+        log.exception("Wording check failed")
+        outcome = {
+            "flags": [],
+            "messages_checked": 0,
+            "mode": "rules_only",
+            "unavailable": True,
+            "note": None,
+        }
+    return report.wording_report(outcome)
+
+
 def handle_message(message: dict) -> None:
     sender = message["from"]
     kind = message.get("type")
@@ -130,7 +148,10 @@ def handle_message(message: dict) -> None:
 
     missing_window = window_missing(result.checks)
     run_agent = settings.llm_enabled and bool(claims_to_check(result.fields, missing_window))
-    _send(sender, report.document_report(result, web_check_running=run_agent))
+    reply = report.document_report(result, web_check_running=run_agent)
+    if (downloaded.mime_type or mime).startswith("image/"):
+        reply = reply + "\n\n" + _wording_reply(downloaded.data, downloaded.mime_type or mime)
+    _send(sender, reply)
     if not run_agent:
         return
     db = SessionLocal()

@@ -104,6 +104,51 @@ It runs as a background job: `POST /v1/web-check` with `{"fields": <fields from
 /v1/document-check>}` returns an id at once; `GET /v1/web-checks/{id}` returns the result and
 the log. Without `ANTHROPIC_API_KEY` it is skipped.
 
+## Wording patterns in the agent's messages
+
+`POST /v1/scam-language/screenshot` takes a PNG or JPEG chat screenshot (20 MiB limit, same
+as the other uploads). A separate vision call transcribes each bubble and marks who sent it.
+Bubbles on the right are the player; bubbles on the left are the other party. Only the other
+party's text is checked. `POST /v1/scam-language/messages` takes messages that are already
+extracted, for tests and for the other steps.
+
+The reply is an evidence section, "Wording patterns in the agent's messages". Each pattern
+is the quoted line and a plain-language meaning. An empty list means none of the known
+patterns were found. It does not mean the offer is genuine, and the report never calls
+anyone a scammer. Quotes from the other party are returned with the flags so the report can
+show what was read. Nothing here stores the raw chat.
+
+The checker is a fine-tuned classifier plus two rule layers (negation, and a fee rule). It
+loads once at startup from `OFFSAID_MODEL_DIR` (default `models/offsaid_classifier_v4`).
+The weights are not in git; see `models/README.md`. On a server the folder has to be
+downloaded or mounted before startup. It needs about 1 to 1.5 GB once loaded, so keep a
+single worker. If the folder is missing, the process still starts and `mode` is
+`rules_only`: only the fee rule can fire, and the report says so. A rule flag's score of
+0.5 is a placeholder, not a probability. Model scores are uncalibrated and are not shown
+as a chance of fraud.
+
+Install the CPU build of PyTorch (a default install may pull CUDA):
+
+```bash
+pip install torch --index-url https://download.pytorch.org/whl/cpu
+```
+
+`make install` does this after `requirements.txt`. Without `ANTHROPIC_API_KEY` the
+screenshot route cannot read bubbles, so it returns no flags and says the chat could not
+be read, instead of inventing a transcript.
+
+Evaluated only on synthetic data and a short list of hand-written messages. Real-world
+accuracy has not been measured, and there is no gold set yet. Do not quote an accuracy
+figure. Other limits, from the integration notes:
+
+- The model still misses some fee wording that has no amount (courier, delivery, clearance). The fee rule covers some of those. False alarms on honest agents are unmeasured.
+- Known false positive: delivery wording can raise `visa_travel_arranged`. Slot-payment messages may raise `urgency_pressure`.
+- Sheng and mixed-language coverage is limited. The Swahili and Sheng phrases were not reviewed by a native speaker.
+- Voice notes, images and documents are not read by this check. Only the other party's text is.
+- Thresholds are a flat 0.5, not tuned. The score on a rule-added flag is a placeholder.
+
+WhatsApp image replies include this section after the document check. PDF replies do not.
+
 ## WhatsApp
 
 `app/whatsapp_webhook.py` connects Steps 2 and 3 to the WhatsApp Cloud API. Point the Meta
@@ -116,7 +161,8 @@ When a player forwards a PDF or an image, the bot:
 
 1. replies "we received your document, this can take a minute",
 2. runs the document check and sends the first report (inconsistencies, warning signs,
-   what is consistent and what is not confirmed, with the quoted lines),
+   what is consistent and what is not confirmed, with the quoted lines). When the
+   upload is an image, that same message includes the wording section,
 3. if the document names a club, runs the web-checking agent and sends a second message
    with each claim's status and source link, the club's official contact and the draft message.
 
@@ -143,6 +189,7 @@ folder (the folder containing `requirements.txt`), then run:
 py -3 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install --upgrade pip
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m pip install torch --index-url https://download.pytorch.org/whl/cpu
 Copy-Item .env.example .env
 notepad .env
 ```
@@ -197,6 +244,7 @@ make seed                                      # loads the licensed-agent CSV
 | `LOOKUP_HASH_SALT` | Secret salt for hashed lookup logs. Set a long random value and keep it stable. |
 | `FOUND_MIN_SCORE` | Name score (0-100) needed for `found`. Default 92. |
 | `POSSIBLE_MIN_SCORE` | Name score needed for `possible_match`. Default 80. |
+| `OFFSAID_MODEL_DIR` | Unpacked scam-language model. Default `models/offsaid_classifier_v4`. Not in git. |
 
 The tables are created on startup. If the agent table is empty, startup also loads the
 CSV, so `make seed` is only needed to add rows to an existing list.
@@ -230,6 +278,11 @@ journalctl -u offsaid -f            # logs
 The service listens on `127.0.0.1:8000`. Put a TLS reverse proxy (nginx or Caddy) in front
 of it for public access. Meta's WhatsApp webhooks will need HTTPS once that part is added.
 
+The scam-language weights are not in the git clone. Unpack them into
+`models/offsaid_classifier_v4` (or set `OFFSAID_MODEL_DIR`) before starting the service.
+The unit runs one worker on purpose: the model needs about 1 to 1.5 GB, and a second
+worker would load a second copy. A 2 GB host fits one copy and little else.
+
 ## Tests
 
 ```bash
@@ -241,9 +294,12 @@ The tests use in-memory SQLite, so they need no database server.
 ## Layout
 
 ```
-app/main.py          FastAPI app: /health, /v1/agent-check, /v1/document-check, /v1/web-check
-app/whatsapp_webhook.py  WhatsApp Cloud API webhook (Steps 2 and 3)
-app/report.py        WhatsApp reply templates
+app/main.py          FastAPI app: /health, /v1/agent-check, /v1/document-check, /v1/web-check, /v1/scam-language
+app/whatsapp_webhook.py  WhatsApp Cloud API webhook (document check, wording section, web check)
+app/report.py        WhatsApp reply templates, including the wording section
+app/scam_language.py Wording check: model plus negation and fee rules
+app/scam_runtime.py  Loads that model once, and runs it on an extracted chat
+app/chat_extraction.py  Vision call that transcribes a chat screenshot with senders
 app/web_agent.py     Step 3: the web-checking agent and its tools
 app/web_check_jobs.py  Step 3 background jobs, results and audit log
 app/document_extraction.py  Step 2: read the file, vision-model extraction, pattern fallback
@@ -252,9 +308,12 @@ app/lookups.py       Wikidata club and RDAP domain lookups
 app/matching.py      RapidFuzz matching (licence, then phone, then name)
 app/normalize.py     name/phone/licence normalisation
 app/seed.py          CSV loader
+models/              Unpacked classifier (git-ignored) and models/README.md
+ml/scam_language/    Generator, synthetic CSVs, training notebook
 deploy/              systemd unit
-scripts/             DB setup, agent loader, test-letter generator
+scripts/             DB setup, agent loader, test-letter generator, wording smoke check
 data/test_letters/   Step 2 test letters and manifest
+docs/                Classifier handoff and integration notes
 ```
 
 `app/llm.py` and `app/whatsapp.py` are used by Steps 2 and 3. `app/pipeline_models.py` is

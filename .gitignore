@@ -9,3 +9,12 @@ __pycache__/
 dist/
 build/
 *.db
+
+# Trained scam-language weights (about 500 MB). See models/README.md.
+models/*
+!models/README.md
+offsaid_classifier_*.zip
+
+# Real labelled messages, once a gold set exists. Not used in this prototype.
+ml/scam_language/gold/*
+!ml/scam_language/gold/README.md
