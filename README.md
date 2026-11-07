@@ -172,6 +172,12 @@ Meta's webhook retries are processed once (`inbound_messages`). The player's num
 only as a salted hash. Without `WHATSAPP_TOKEN`, replies are logged instead of sent. The
 agent check (Step 1) is not wired to WhatsApp; it stays at `/v1/agent-check`.
 
+Twilio uses the same replies on `POST /twilio/webhook`. Set `TWILIO_ACCOUNT_SID`,
+`TWILIO_AUTH_TOKEN` and `TWILIO_WHATSAPP_FROM` (with the `whatsapp:` prefix). Point the
+sender's "A message comes in" webhook at `https://<your-host>/twilio/webhook`, method POST.
+For a local trial, run `ngrok http 8000` and paste that https address. The auth token
+rejects a request whose signature does not match that public URL.
+
 The agent list in `data/licensed_agents.simulated.csv` is **simulated** demo data. Replace
 it with KEFWA's list before real use.
 

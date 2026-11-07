@@ -1,0 +1,288 @@
+{
+  "cases": [
+    {
+      "external_ref": "seed:sim-01",
+      "source": "simulated",
+      "status": "unreviewed",
+      "claimed_club": "Coast City FC",
+      "claimed_agent": "Mr Kamau",
+      "identifiers": [
+        {
+          "kind": "phone",
+          "value": "0999 000 001",
+          "role": "agent_contact"
+        },
+        {
+          "kind": "account",
+          "value": "9990001",
+          "role": "payment_to"
+        },
+        {
+          "kind": "email",
+          "value": "kamau.scout@coastcity-fc.example",
+          "role": "sender"
+        }
+      ],
+      "wording_text": "Congratulations, you have been selected for our academy. To confirm your slot send KES 15,000 registration fee to my number today. Your visa is already arranged. Do not tell anyone about this.",
+      "wording_labels": [
+        "advance_fee_request",
+        "guaranteed_outcome",
+        "visa_travel_arranged",
+        "secrecy"
+      ],
+      "summary": {
+        "note": "simulated case, invented data"
+      },
+      "letter_image": "letters/sim-01.png",
+      "letter_text": "Dear the player, On behalf of Coast City FC we are pleased to invite you for a trial from 12 March 2026. To confirm your registration and secure your place you must pay a registration fee of KES 15,000 to our agent before the trial. Your visa and travel will be arranged by the club. Yours sincerely, Mr Kamau, Director of Football, Coast City FC."
+    },
+    {
+      "external_ref": "seed:sim-02",
+      "source": "simulated",
+      "status": "unreviewed",
+      "claimed_club": "Harbour Town FC",
+      "claimed_agent": "Ms Mwende",
+      "identifiers": [
+        {
+          "kind": "phone",
+          "value": "+254 999 000 002",
+          "role": "agent_contact"
+        },
+        {
+          "kind": "account",
+          "value": "9990002",
+          "role": "payment_to"
+        },
+        {
+          "kind": "email",
+          "value": "mwende.fc@gmail.com",
+          "role": "sender"
+        }
+      ],
+      "wording_text": "Hello, we saw your video. Please send your date of birth and position and our scout will reply by email.",
+      "wording_labels": [],
+      "summary": {
+        "note": "simulated case, invented data"
+      },
+      "letter_image": "letters/sim-02.png",
+      "letter_text": "Official offer of contract. Harbour Town FC offers the player a professional contract starting 12 March 2026. The club will cover your accommodation and flights. A clearance fee of KES 15,000 is payable to the club agent Ms Mwende to release your documents. Signed, Ms Mwende for Harbour Town FC."
+    },
+    {
+      "external_ref": "seed:sim-03",
+      "source": "simulated",
+      "status": "unreviewed",
+      "claimed_club": "Lakeside Stars",
+      "claimed_agent": "Mr Odhiambo",
+      "identifiers": [
+        {
+          "kind": "phone",
+          "value": "0999 000 003",
+          "role": "agent_contact"
+        },
+        {
+          "kind": "account",
+          "value": "9990003",
+          "role": "payment_to"
+        }
+      ],
+      "wording_text": "Hello, we saw your video. Please send your date of birth and position and our scout will reply by email.",
+      "wording_labels": [],
+      "summary": {
+        "note": "simulated case, invented data"
+      },
+      "letter_image": "letters/sim-03.png",
+      "letter_text": "Trial invitation. Lakeside Stars invites the player to its open trial on 12 March 2026. Bring boots, ID and your medical report. There is no fee for the trial. Contact Mr Odhiambo at the club office. Lakeside Stars."
+    },
+    {
+      "external_ref": "seed:sim-04",
+      "source": "simulated",
+      "status": "unreviewed",
+      "claimed_club": "Northern Lions",
+      "claimed_agent": "Mr Wekesa",
+      "identifiers": [
+        {
+          "kind": "phone",
+          "value": "0999 000 004",
+          "role": "agent_contact"
+        },
+        {
+          "kind": "account",
+          "value": "9990004",
+          "role": "payment_to"
+        },
+        {
+          "kind": "email",
+          "value": "wekesa@northernlions.example",
+          "role": "sender"
+        }
+      ],
+      "wording_text": "Good news. The coach has already picked you. Send the registration fee to my M-Pesa number before Friday and we book your ticket. Keep this between us.",
+      "wording_labels": [
+        "advance_fee_request",
+        "guaranteed_outcome",
+        "urgency_pressure",
+        "secrecy"
+      ],
+      "summary": {
+        "note": "simulated case, invented data"
+      },
+      "letter_image": "letters/sim-04.png",
+      "letter_text": "Congratulations the player. Northern Lions has selected you for its academy intake of 12 March 2026. Your place is guaranteed once you send KES 15,000 to the agent Mr Wekesa. Do not share this letter. Northern Lions."
+    },
+    {
+      "external_ref": "seed:sim-05",
+      "source": "simulated",
+      "status": "verified_genuine",
+      "claimed_club": "Riverbend Rovers",
+      "claimed_agent": "Ms Wafula",
+      "identifiers": [
+        {
+          "kind": "phone",
+          "value": "0999 000 005",
+          "role": "agent_contact"
+        },
+        {
+          "kind": "email",
+          "value": "wafula@riverbend-rovers.example",
+          "role": "sender"
+        }
+      ],
+      "wording_text": "Your trial is at 9am on Saturday. Bring boots and ID. There is no fee.",
+      "wording_labels": [],
+      "summary": {
+        "note": "simulated case, invented data"
+      },
+      "letter_image": "letters/sim-05.png",
+      "letter_text": "Letter of intent. Riverbend Rovers intends to register the player for the season starting 12 March 2026. Registration is handled by the club directly with the federation and the player pays nothing. Regards, Ms Wafula, Riverbend Rovers."
+    },
+    {
+      "external_ref": "seed:sim-06",
+      "source": "simulated",
+      "status": "confirmed_scam",
+      "claimed_club": "Gold Coast Academy",
+      "claimed_agent": "Mr Otieno",
+      "identifiers": [
+        {
+          "kind": "phone",
+          "value": "0999 000 006",
+          "role": "agent_contact"
+        },
+        {
+          "kind": "account",
+          "value": "9990006",
+          "role": "payment_to"
+        }
+      ],
+      "wording_text": "Good news. The coach has already picked you. Send the registration fee to my M-Pesa number before Friday and we book your ticket. Keep this between us.",
+      "wording_labels": [
+        "advance_fee_request",
+        "guaranteed_outcome",
+        "urgency_pressure",
+        "secrecy"
+      ],
+      "summary": {
+        "note": "simulated case, invented data"
+      },
+      "letter_image": "letters/sim-06.png",
+      "letter_text": "Dear the player, On behalf of Gold Coast Academy we are pleased to invite you for a trial from 12 March 2026. To confirm your registration and secure your place you must pay a registration fee of KES 15,000 to our agent before the trial. Your visa and travel will be arranged by the club. Yours sincerely, Mr Otieno, Director of Football, Gold Coast Academy."
+    },
+    {
+      "external_ref": "seed:sim-07",
+      "source": "simulated",
+      "status": "verified_genuine",
+      "claimed_club": "Riverside FC",
+      "claimed_agent": "Mr Njoroge",
+      "identifiers": [
+        {
+          "kind": "phone",
+          "value": "0999 000 007",
+          "role": "agent_contact"
+        },
+        {
+          "kind": "email",
+          "value": "njoroge@riverside-fc.example",
+          "role": "sender"
+        }
+      ],
+      "wording_text": "Your trial is at 9am on Saturday. Bring boots and ID. There is no fee.",
+      "wording_labels": [],
+      "summary": {
+        "note": "simulated case, invented data"
+      },
+      "letter_image": "letters/sim-07.png",
+      "letter_text": "Trial confirmation from Riverside FC. the player, your trial is on 12 March 2026 at the club ground at 9am. Training kit is provided by the club. Please confirm by email. Mr Njoroge, Riverside FC."
+    },
+    {
+      "external_ref": "seed:sim-08",
+      "source": "simulated",
+      "status": "unreviewed",
+      "claimed_club": "Hilltop Stars",
+      "claimed_agent": "Ms Chebet",
+      "identifiers": [
+        {
+          "kind": "phone",
+          "value": "0999 000 008",
+          "role": "agent_contact"
+        },
+        {
+          "kind": "account",
+          "value": "9990008",
+          "role": "payment_to"
+        }
+      ],
+      "wording_text": "Hello, we saw your video. Please send your date of birth and position and our scout will reply by email.",
+      "wording_labels": [],
+      "summary": {
+        "note": "simulated case, invented data"
+      }
+    },
+    {
+      "external_ref": "seed:sim-09",
+      "source": "simulated",
+      "status": "unreviewed",
+      "claimed_club": "Delta City",
+      "claimed_agent": "Mr Abdi",
+      "identifiers": [
+        {
+          "kind": "phone",
+          "value": "0999 000 009",
+          "role": "agent_contact"
+        },
+        {
+          "kind": "email",
+          "value": "abdi@deltacity.example",
+          "role": "sender"
+        }
+      ],
+      "wording_text": "Hello, we saw your video. Please send your date of birth and position and our scout will reply by email.",
+      "wording_labels": [],
+      "summary": {
+        "note": "simulated case, invented data"
+      }
+    },
+    {
+      "external_ref": "seed:sim-10",
+      "source": "simulated",
+      "status": "unreviewed",
+      "claimed_club": "Sunrise FC",
+      "claimed_agent": "Ms Atieno",
+      "identifiers": [
+        {
+          "kind": "phone",
+          "value": "0999 000 010",
+          "role": "agent_contact"
+        },
+        {
+          "kind": "account",
+          "value": "9990010",
+          "role": "payment_to"
+        }
+      ],
+      "wording_text": "Hello, we saw your video. Please send your date of birth and position and our scout will reply by email.",
+      "wording_labels": [],
+      "summary": {
+        "note": "simulated case, invented data"
+      }
+    }
+  ]
+}

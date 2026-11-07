@@ -112,6 +112,39 @@ def _wording_reply(data: bytes, mime_type: str) -> str:
     return report.wording_report(outcome)
 
 
+def _send_offer(sender: str, data: bytes, mime: str, send) -> None:
+    """Document check, wording section for an image, then the web check. `send(to, text)`."""
+    try:
+        result = check_document(data, mime)
+    except UnsupportedDocument:
+        send(sender, report.UNSUPPORTED)
+        return
+    except UnsafeDocument:
+        send(sender, report.TOO_LARGE)
+        return
+    except Exception:
+        log.exception("Document check failed")
+        send(sender, report.FAILED)
+        return
+
+    missing_window = window_missing(result.checks)
+    run_agent = settings.llm_enabled and bool(claims_to_check(result.fields, missing_window))
+    reply = report.document_report(result, web_check_running=run_agent)
+    if mime.startswith("image/"):
+        reply = reply + "\n\n" + _wording_reply(data, mime)
+    send(sender, reply)
+    if not run_agent:
+        return
+    number = sender.removeprefix("whatsapp:")
+    db = SessionLocal()
+    try:
+        job_id = create_job(db, player_hash=hash_lookup_value(f"wa:{number}"))
+    finally:
+        db.close()
+    web = run_job(job_id, result.fields, missing_window)
+    send(sender, report.web_report(web))
+
+
 def handle_message(message: dict) -> None:
     sender = message["from"]
     kind = message.get("type")
@@ -133,31 +166,4 @@ def handle_message(message: dict) -> None:
         log.exception("Could not download WhatsApp media")
         _send(sender, report.FAILED)
         return
-    try:
-        result = check_document(downloaded.data, downloaded.mime_type or mime)
-    except UnsupportedDocument:
-        _send(sender, report.UNSUPPORTED)
-        return
-    except UnsafeDocument:
-        _send(sender, report.TOO_LARGE)
-        return
-    except Exception:
-        log.exception("Document check failed")
-        _send(sender, report.FAILED)
-        return
-
-    missing_window = window_missing(result.checks)
-    run_agent = settings.llm_enabled and bool(claims_to_check(result.fields, missing_window))
-    reply = report.document_report(result, web_check_running=run_agent)
-    if (downloaded.mime_type or mime).startswith("image/"):
-        reply = reply + "\n\n" + _wording_reply(downloaded.data, downloaded.mime_type or mime)
-    _send(sender, reply)
-    if not run_agent:
-        return
-    db = SessionLocal()
-    try:
-        job_id = create_job(db, player_hash=hash_lookup_value(f"wa:{sender}"))
-    finally:
-        db.close()
-    web = run_job(job_id, result.fields, missing_window)
-    _send(sender, report.web_report(web))
+    _send_offer(sender, downloaded.data, downloaded.mime_type or mime, _send)

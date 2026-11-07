@@ -29,6 +29,7 @@ from app.report import wording_report
 from app.scam_runtime import check_screenshot, get_scam_checker
 from app.seed import seed_if_empty
 from app.web_check_jobs import create_job, get_job, run_job
+from app.twilio_webhook import router as twilio_router
 from app.whatsapp_webhook import router as whatsapp_router
 
 log = logging.getLogger(__name__)
@@ -61,6 +62,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 app.include_router(whatsapp_router)
+app.include_router(twilio_router)
 
 
 @app.get("/", include_in_schema=False)

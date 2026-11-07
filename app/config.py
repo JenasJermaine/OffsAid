@@ -23,6 +23,12 @@ class Settings(BaseSettings):
     whatsapp_graph_url: str = "https://graph.facebook.com"
     max_media_bytes: int = 20 * 1024 * 1024
 
+    # Twilio WhatsApp. Empty auth token = replies are logged, not sent.
+    twilio_account_sid: str = ""
+    twilio_auth_token: str = ""
+    twilio_whatsapp_from: str = ""
+    twilio_api_base: str = "https://api.twilio.com"
+
     # LLM (Claude). Empty key = LLM layers are skipped and rules-only checks run.
     anthropic_api_key: str = ""
     llm_model: str = "claude-opus-5-5"
