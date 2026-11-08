@@ -8,6 +8,7 @@ from typing import Optional
 from fastapi import BackgroundTasks, Depends, FastAPI, File, HTTPException, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -61,9 +62,20 @@ app.include_router(admin_router)
 app.include_router(demo_router)
 
 
+STATIC = Path(__file__).parent / "static"
+# Only the landing page's images are served as plain files; the other pages have their own routes.
+app.mount("/assets", StaticFiles(directory=STATIC / "assets"), name="assets")
+
+
 @app.get("/", include_in_schema=False)
 def home() -> FileResponse:
-    return FileResponse(Path(__file__).parent / "static" / "index.html")
+    """The public landing page: what OffsAid does, and how to reach it (WhatsApp, or the web demo)."""
+    return FileResponse(STATIC / "landing.html")
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon() -> FileResponse:
+    return FileResponse(STATIC / "assets" / "favicon.png", media_type="image/png")
 
 
 @app.get("/health")

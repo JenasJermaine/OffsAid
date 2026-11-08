@@ -393,6 +393,7 @@ OFFSAID_TEST_DB=postgresql://user@localhost:5432/offsaid_test pytest tests/test_
 
 ```
 app/main.py          FastAPI app: /health, /v1/agent-check, /v1/document-check, /v1/web-check, /v1/scam-language
+app/static/landing.html  Public landing page at / (images in app/static/assets, from the OffsAid deck)
 app/whatsapp_webhook.py  WhatsApp Cloud API webhook (document check, wording section, linking, web check)
 app/report.py        WhatsApp reply templates, including the wording and linking sections
 app/case_linking.py  Cross-case linking: normalising, keyed hashing, masking, matching rules, thresholds

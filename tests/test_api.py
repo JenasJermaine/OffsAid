@@ -48,3 +48,12 @@ def test_agent_check_writes_hashed_log(client: TestClient, db: Session) -> None:
     raw = str(logs[0].query_hash)
     assert "James" not in raw
     assert "Otieno" not in raw
+
+
+def test_landing_page_and_assets(client):
+    page = client.get("/")
+    assert page.status_code == 200
+    assert "Catching fake agents" in page.text and "+254 107 842 180" in page.text and 'href="/demo"' in page.text
+    assert client.get("/assets/ball.png").headers["content-type"] == "image/png"
+    assert client.get("/favicon.ico").status_code == 200
+    assert client.get("/assets/../main.py").status_code == 404

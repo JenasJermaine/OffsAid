@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>OffsAid · Catching fake agents offside</title>
+<meta name="description" content="OffsAid helps Kenyan footballers check an overseas trial or contract offer before they pay or travel: the agent, the offer letter and the agent's messages, on WhatsApp." />
+<link rel="icon" type="image/png" href="/assets/favicon.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --ink: #0e0f0f;
+    --grey: #545454;
+    --soft: #8a8d8f;
+    --paper: #ffffff;
+    --tint: #f3f4f1;
+    --line: #e4e5e1;
+    --green: #00cc00;
+    --green-deep: #0a8f2a;
+    --red: #e5322d;
+    --night: #0e0f0f;
+    --radius: 14px;
+    --wrap: 1120px;
+    color-scheme: light;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0; background: var(--paper); color: var(--ink);
+    font: 17px/1.6 Jost, "Segoe UI", system-ui, -apple-system, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  img { max-width: 100%; height: auto; display: block; }
+  a { color: inherit; }
+  .wrap { max-width: var(--wrap); margin: 0 auto; padding-inline: 24px; }
+  h1, h2, h3 { line-height: 1.08; letter-spacing: -0.02em; margin: 0; font-weight: 700; }
+  h2 { font-size: clamp(30px, 4.2vw, 46px); }
+  h3 { font-size: 21px; letter-spacing: -0.01em; font-weight: 600; }
+  p { margin: 0; }
+  .eyebrow { font-size: 13px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--grey); }
+  .lead { font-size: 19px; color: var(--grey); max-width: 34em; }
+  section { padding-block: clamp(64px, 9vw, 112px); }
+
+  /* logo: the football is the O */
+  .logo { display: inline-flex; align-items: center; font-weight: 700; font-size: 25px; letter-spacing: -0.02em; text-decoration: none; color: var(--ink); }
+  .logo img { width: 1.08em; height: 1.08em; margin-right: 0.04em; }
+
+  /* buttons */
+  .btn {
+    display: inline-flex; align-items: center; gap: 10px; height: 50px; padding: 0 22px;
+    border-radius: 999px; font: inherit; font-weight: 600; font-size: 16px; text-decoration: none;
+    border: 1.5px solid var(--ink); color: var(--ink); background: transparent; transition: background 0.15s, color 0.15s, transform 0.15s;
+  }
+  .btn:hover { background: var(--ink); color: var(--paper); }
+  .btn.go { background: var(--green); border-color: var(--green); color: var(--ink); }
+  .btn.go:hover { background: #14d814; color: var(--ink); transform: translateY(-1px); }
+  .btn svg { width: 20px; height: 20px; fill: currentColor; flex: none; }
+  .btn.small { height: 40px; padding: 0 16px; font-size: 15px; }
+
+  /* header */
+  .top { position: sticky; top: 0; z-index: 20; background: var(--paper); border-bottom: 1px solid transparent; transition: border-color 0.2s; }
+  .top.scrolled { border-bottom-color: var(--line); }
+  .top .wrap { display: flex; align-items: center; gap: 28px; height: 68px; }
+  .top nav { display: flex; gap: 26px; margin-left: auto; font-size: 15.5px; }
+  .top nav a { text-decoration: none; color: var(--grey); }
+  .top nav a:hover { color: var(--ink); }
+
+  /* hero */
+  .hero { padding-top: clamp(32px, 6vw, 72px); }
+  .hero .wrap { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: clamp(32px, 6vw, 80px); align-items: center; }
+  .hero h1 { font-size: clamp(44px, 6.6vw, 84px); line-height: 0.98; letter-spacing: -0.035em; margin: 18px 0 24px; }
+  .hero h1 em { font-style: normal; position: relative; white-space: nowrap; }
+  .hero h1 em::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0.06em; height: 0.14em; background: var(--green); z-index: -1; border-radius: 2px; }
+  .hero .actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 34px; }
+  .hero .fine { margin-top: 18px; font-size: 14.5px; color: var(--soft); }
+  .photo { position: relative; }
+  .photo img { width: 100%; aspect-ratio: 4 / 5; max-height: min(640px, calc(100vh - 140px)); min-height: 420px; object-fit: cover; object-position: 50% 35%; border-radius: 22px; }
+  .credit { position: absolute; right: 14px; bottom: 12px; font-size: 11.5px; color: rgba(255, 255, 255, 0.85); text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5); }
+  .bubble {
+    position: absolute; left: -28px; bottom: 44px; width: min(290px, 78%);
+    background: var(--paper); border-radius: 16px; padding: 14px 16px; box-shadow: 0 18px 50px rgba(0, 0, 0, 0.18); font-size: 14.5px; line-height: 1.45;
+  }
+  .bubble .cmd { display: inline-block; background: #d9fdd3; border-radius: 8px; padding: 2px 8px; font-weight: 600; margin-bottom: 10px; }
+  .bubble .row { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+  .dot.red { background: var(--red); }
+  .dot.green { background: var(--green); }
+
+  /* problem (dark) */
+  .problem { background: var(--night); color: #f1f1ef; }
+  .problem .eyebrow { color: #9a9d9f; }
+  .problem .wrap { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(32px, 6vw, 80px); align-items: center; }
+  .stat { font-size: clamp(96px, 15vw, 188px); font-weight: 700; line-height: 0.9; letter-spacing: -0.05em; color: var(--green); margin: 14px 0 18px; }
+  .problem .big { font-size: clamp(22px, 2.6vw, 28px); line-height: 1.3; max-width: 17em; }
+  .source { margin-top: 14px; font-size: 13.5px; color: #8a8d8f; }
+  .points { display: grid; gap: 30px; }
+  .points h3 { color: #fff; margin-bottom: 8px; }
+  .points p { color: #b9bcbd; }
+  .points .who { border-top: 1px solid #2b2d2e; padding-top: 28px; }
+  .problem figure { margin: 0 0 6px; }
+  .problem figure img { border-radius: 14px; aspect-ratio: 16 / 9; object-fit: cover; width: 100%; }
+  .problem figcaption { font-size: 13px; color: #8a8d8f; margin-top: 8px; }
+
+  /* meet */
+  .center { text-align: center; }
+  .center .lead { margin: 18px auto 0; }
+  .checks { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 56px; }
+  .check { background: var(--tint); border-radius: var(--radius); padding: 30px 28px 32px; }
+  .check .icon { width: 46px; height: 46px; border-radius: 12px; background: var(--paper); display: grid; place-items: center; margin-bottom: 22px; }
+  .check .icon svg { width: 24px; height: 24px; fill: none; stroke: var(--ink); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .check p { color: var(--grey); margin-top: 10px; font-size: 16px; }
+  code, .cmdtag {
+    font-family: ui-monospace, "SFMono-Regular", Consolas, monospace; font-size: 0.86em;
+    background: var(--paper); border: 1px solid var(--line); border-radius: 7px; padding: 2px 7px; white-space: nowrap;
+  }
+  .check .cmdtag { display: inline-block; margin-top: 18px; }
+
+  /* how it works */
+  .how { background: var(--tint); }
+  .flow { display: grid; grid-template-columns: 0.8fr 2.4fr 0.9fr 0.9fr; gap: 14px; margin-top: 56px; align-items: stretch; }
+  .stage { background: var(--paper); border-radius: var(--radius); padding: 22px 22px 24px; position: relative; }
+  .stage .label { font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--soft); margin-bottom: 14px; }
+  .stage ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; font-size: 16px; }
+  .engine { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .step { border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
+  .step b { display: block; font-size: 15px; color: var(--green-deep); font-weight: 700; margin-bottom: 6px; font-variant-numeric: tabular-nums; }
+  .step span { font-size: 15.5px; line-height: 1.3; display: block; }
+  .stage + .stage::before {
+    content: ""; position: absolute; left: -12px; top: 50%; width: 10px; height: 10px; margin-top: -5px;
+    border-top: 2px solid var(--soft); border-right: 2px solid var(--soft); transform: rotate(45deg);
+  }
+  .stage .row { display: flex; align-items: center; gap: 10px; font-size: 16px; }
+  .stage .row + .row { margin-top: 10px; }
+  .how .note { margin-top: 26px; color: var(--grey); font-size: 15.5px; max-width: 46em; }
+
+  /* start */
+  .start-grid { display: grid; grid-template-columns: 1.15fr 0.85fr; gap: 18px; margin-top: 52px; }
+  .card { border: 1px solid var(--line); border-radius: 20px; padding: clamp(26px, 3.4vw, 40px); }
+  .card.wa { background: var(--night); color: #f1f1ef; border-color: var(--night); }
+  .card .kicker { font-size: 13px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--soft); }
+  .card.wa .kicker { color: #9a9d9f; }
+  .number { font-size: clamp(30px, 3.8vw, 42px); font-weight: 700; letter-spacing: -0.01em; margin: 10px 0 24px; font-variant-numeric: tabular-nums; }
+  .number a { text-decoration: none; }
+  ol.steps { margin: 0 0 30px; padding: 0; list-style: none; counter-reset: s; display: grid; gap: 14px; }
+  ol.steps li { counter-increment: s; display: grid; grid-template-columns: 30px 1fr; gap: 12px; align-items: baseline; }
+  ol.steps li::before {
+    content: counter(s); width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center;
+    font-size: 13px; font-weight: 700; background: var(--green); color: var(--ink); transform: translateY(-1px);
+  }
+  .card.wa code { background: #1f2122; border-color: #2e3132; color: #f1f1ef; }
+  .card.demo h3 { font-size: 30px; margin: 10px 0 14px; letter-spacing: -0.02em; }
+  .card.demo p { color: var(--grey); margin-bottom: 26px; }
+  .card .actions { display: flex; flex-wrap: wrap; gap: 10px; }
+  .card.wa .btn:not(.go) { border-color: #f1f1ef; color: #f1f1ef; }
+  .card.wa .btn:not(.go):hover { background: #f1f1ef; color: var(--ink); }
+  .fallback { margin-top: 22px; font-size: 14.5px; color: #9a9d9f; }
+  .commands { margin-top: 18px; display: grid; grid-template-columns: max-content 1fr; gap: 10px 16px; font-size: 15.5px; }
+  .commands dt { margin: 0; }
+  .commands dd { margin: 0; color: var(--grey); }
+
+  /* principles */
+  .principles { display: grid; grid-template-columns: repeat(3, 1fr); gap: clamp(24px, 4vw, 56px); margin-top: 48px; }
+  .principles div { border-top: 2px solid var(--ink); padding-top: 22px; }
+  .principles p { color: var(--grey); margin-top: 10px; font-size: 16px; }
+
+  /* team */
+  .team { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 48px; }
+  .person img { width: 100%; aspect-ratio: 4 / 5; object-fit: cover; border-radius: var(--radius); background: var(--tint); }
+  .person h3 { margin-top: 16px; }
+  .person p { color: var(--grey); font-size: 15.5px; margin-top: 4px; }
+
+  /* closing */
+  .closing { background: var(--night); color: #fff; }
+  .closing .wrap { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: clamp(32px, 6vw, 80px); align-items: center; }
+  .closing h2 { font-size: clamp(40px, 6vw, 76px); max-width: 8em; line-height: 0.98; letter-spacing: -0.035em; }
+  .closing .lead { color: #b9bcbd; margin-top: 22px; }
+  .closing .actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 32px; }
+  .closing .btn:not(.go) { border-color: #fff; color: #fff; }
+  .closing .btn:not(.go):hover { background: #fff; color: var(--ink); }
+  .closing .photo img { max-height: min(600px, calc(100vh - 120px)); object-position: 50% 0%; }
+
+  footer { padding: 34px 0 44px; font-size: 14.5px; color: var(--soft); }
+  footer .wrap { display: flex; flex-wrap: wrap; gap: 14px 28px; align-items: center; }
+  footer .logo { font-size: 20px; margin-right: auto; }
+  footer a { color: var(--grey); text-decoration: none; }
+  footer a:hover { color: var(--ink); }
+
+  /* gentle reveal on scroll */
+  .reveal { opacity: 0; transform: translateY(14px); transition: opacity 0.6s ease, transform 0.6s ease; }
+  .reveal.in { opacity: 1; transform: none; }
+  @media (prefers-reduced-motion: reduce) { .reveal { opacity: 1; transform: none; transition: none; } html { scroll-behavior: auto; } }
+
+  @media (max-width: 960px) {
+    .flow { grid-template-columns: 1fr; }
+    .stage + .stage::before { left: 50%; top: -12px; margin: 0 0 0 -5px; transform: rotate(135deg); }
+    .engine { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 860px) {
+    .top nav { display: none; }
+    .top .wrap { justify-content: space-between; }
+    .hero .wrap, .problem .wrap, .start-grid, .closing .wrap { grid-template-columns: 1fr; }
+    .photo { max-width: 520px; }
+    .bubble { left: 12px; }
+    .checks, .principles { grid-template-columns: 1fr; }
+    .team { grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  }
+  @media (max-width: 560px) {
+    body { font-size: 16px; }
+    .team { grid-template-columns: 1fr 1fr; }
+    .hero .actions .btn, .card .actions .btn { flex: 1 1 100%; justify-content: center; }
+    .closing h2 { font-size: 40px; }
+  }
+</style>
+</head>
+<body>
+
+<header class="top" id="top">
+  <div class="wrap">
+    <a class="logo" href="#" aria-label="OffsAid home"><img src="/assets/ball.png" alt="" />ffsAid</a>
+    <nav aria-label="Sections">
+      <a href="#problem">The problem</a>
+      <a href="#checks">What we check</a>
+      <a href="#how">How it works</a>
+      <a href="#team">Team</a>
+    </nav>
+    <a class="btn small go" href="#start">Check an offer</a>
+  </div>
+</header>
+
+<main>
+  <section class="hero">
+    <div class="wrap">
+      <div>
+        <p class="eyebrow">Data science · Sports, equity &amp; transparency</p>
+        <h1>Catching fake agents <em>offside.</em></h1>
+        <p class="lead">An offer to trial abroad can change a career, or cost a family everything. OffsAid helps Kenyan footballers check the agent, the offer letter and the agent's messages before they pay or travel, without leaving WhatsApp.</p>
+        <div class="actions">
+          <a class="btn go" href="https://wa.me/254107842180?text=Hi" target="_blank" rel="noopener">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12.04 2a9.9 9.9 0 0 0-8.5 14.98L2 22l5.16-1.5A9.93 9.93 0 1 0 12.04 2zm0 18.1a8.2 8.2 0 0 1-4.2-1.15l-.3-.18-3.06.89.9-2.98-.2-.31a8.2 8.2 0 1 1 6.86 3.73zm4.5-6.13c-.25-.12-1.46-.72-1.69-.8-.23-.08-.39-.12-.55.12-.17.25-.64.8-.78.97-.14.16-.29.18-.53.06-.25-.12-1.04-.38-1.98-1.22-.73-.65-1.23-1.46-1.37-1.7-.14-.25-.02-.38.11-.5.11-.11.25-.29.37-.43.12-.15.17-.25.25-.41.08-.17.04-.31-.02-.43-.06-.12-.55-1.33-.76-1.82-.2-.48-.4-.41-.55-.42h-.47a.9.9 0 0 0-.65.31c-.23.25-.86.84-.86 2.04s.88 2.37 1 2.53c.12.17 1.73 2.64 4.2 3.7.59.25 1.05.4 1.4.52.59.19 1.13.16 1.55.1.47-.07 1.46-.6 1.67-1.18.2-.58.2-1.08.14-1.18-.06-.1-.23-.17-.47-.29z"/></svg>
+            Chat on WhatsApp
+          </a>
+          <a class="btn" href="/demo">Try the web demo</a>
+        </div>
+        <p class="fine">Free for players. We show you what we found. We never say an offer is real or fake.</p>
+      </div>
+      <div class="photo">
+        <img src="/assets/hero-player.jpg" alt="A footballer in an orange kit controlling the ball on a pitch" width="1100" height="1375" />
+        <span class="credit">Photo: Chris Wade</span>
+        <div class="bubble" aria-hidden="true">
+          <span class="cmd">@document-check</span>
+          <div class="row"><span class="dot red"></span>Sender uses a free Gmail address</div>
+          <div class="row"><span class="dot red"></span>Asks for a fee before any contract</div>
+          <div class="row"><span class="dot green"></span>The club exists in that league</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="problem" id="problem">
+    <div class="wrap">
+      <div class="reveal">
+        <p class="eyebrow">The problem</p>
+        <p class="stat">56%</p>
+        <p class="big">of football players approached were not given what was promised.</p>
+        <p class="source">Source: FIFPRO, 2023</p>
+      </div>
+      <div class="points reveal">
+        <figure>
+          <img src="/assets/kefwa-meeting.jpg" alt="The OffsAid team with stakeholders at a meeting" width="1000" height="750" loading="lazy" />
+          <figcaption>Research with KEFWA, Azidi and S. Majimbo.</figcaption>
+        </figure>
+        <div>
+          <h3>Verifying the agent is not enough.</h3>
+          <p>Kenyan footballers pursuing overseas trials face fraudulent offers because the evidence needed to check an opportunity is scattered: the agent, the letter, the messages, and what other players have already seen.</p>
+        </div>
+        <div class="who">
+          <h3>Who it is for</h3>
+          <p>Kenyan footballers, 18 and over, pursuing opportunities abroad through informal channels.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="checks">
+    <div class="wrap">
+      <div class="center reveal">
+        <p class="eyebrow">Meet OffsAid</p>
+        <h2 style="margin-top:14px">Three checks, one chat.</h2>
+        <p class="lead">Run one check or all three, in any order. When you are done, OffsAid sends a summary of everything it found.</p>
+      </div>
+      <div class="checks">
+        <article class="check reveal">
+          <div class="icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/><path d="m15.5 11.5 1.8 1.8 3.2-3.6"/></svg></div>
+          <h3>Agent verification</h3>
+          <p>Is the agent on the licensed agents list? Send their name, licence number or phone number.</p>
+          <span class="cmdtag">@agent-check</span>
+        </article>
+        <article class="check reveal">
+          <div class="icon"><svg viewBox="0 0 24 24"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><circle cx="11.5" cy="14.5" r="2.5"/><path d="m13.5 16.5 2 2"/></svg></div>
+          <h3>Document verification</h3>
+          <p>Send the offer letter, trial invitation, contract or payment request. We check what it claims against public sources.</p>
+          <span class="cmdtag">@document-check</span>
+        </article>
+        <article class="check reveal">
+          <div class="icon"><svg viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20.5l1.4-4.8A8 8 0 1 1 21 12z"/><path d="M12 8v4"/><path d="M12 15.5h.01"/></svg></div>
+          <h3>Scam message flagging</h3>
+          <p>Send a screenshot of your chat with the agent. We point out wording that often comes with scams, quoting the exact line.</p>
+          <span class="cmdtag">@message-check</span>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="how" id="how">
+    <div class="wrap">
+      <div class="reveal">
+        <p class="eyebrow">How it works</p>
+        <h2 style="margin-top:14px">From a forwarded message to a clear next step.</h2>
+      </div>
+      <div class="flow reveal">
+        <div class="stage">
+          <p class="label">Player submits</p>
+          <ul><li>Agent details</li><li>Offer letter</li><li>Messages</li></ul>
+        </div>
+        <div class="stage">
+          <p class="label">OffsAid verification engine</p>
+          <div class="engine">
+            <div class="step"><b>01</b><span>Agent check</span></div>
+            <div class="step"><b>02</b><span>Document check</span></div>
+            <div class="step"><b>03</b><span>Message analysis</span></div>
+            <div class="step"><b>04</b><span>Pattern matching across cases</span></div>
+          </div>
+        </div>
+        <div class="stage">
+          <p class="label">Risk assessment</p>
+          <div class="row"><span class="dot red"></span>Flags</div>
+          <div class="row"><span class="dot green"></span>Low risk</div>
+        </div>
+        <div class="stage">
+          <p class="label">Next step</p>
+          <p style="font-size:16px">KEFWA review when unclear</p>
+        </div>
+      </div>
+      <p class="note reveal">Pattern matching compares a new offer with earlier cases: the same phone number, payment account or letter layout showing up under a different club's name. Phone numbers and accounts are stored only in a protected form, never as raw numbers.</p>
+    </div>
+  </section>
+
+  <section id="start">
+    <div class="wrap">
+      <div class="reveal">
+        <p class="eyebrow">Get started</p>
+        <h2 style="margin-top:14px">Check an offer now.</h2>
+      </div>
+      <div class="start-grid">
+        <div class="card wa reveal">
+          <p class="kicker">On your phone · WhatsApp</p>
+          <p class="number"><a href="https://wa.me/254107842180?text=Hi" target="_blank" rel="noopener">+254 107 842 180</a></p>
+          <ol class="steps">
+            <li><span>Save the number, or tap <b>Chat on WhatsApp</b>.</span></li>
+            <li><span>Send <code>hi</code> to see the menu.</span></li>
+            <li><span>Pick a check: <code>@agent-check</code>, <code>@document-check</code> or <code>@message-check</code>, then send what it asks for. A document or screenshot can carry the command as its caption.</span></li>
+            <li><span>Send <code>@done</code> for a summary. If something needs a closer look, your case goes to KEFWA, who may contact you.</span></li>
+          </ol>
+          <div class="actions">
+            <a class="btn go" href="https://wa.me/254107842180?text=Hi" target="_blank" rel="noopener">Chat on WhatsApp</a>
+          </div>
+          <p class="fallback">If the WhatsApp line is unavailable, the web demo runs exactly the same checks.</p>
+        </div>
+        <div class="card demo reveal">
+          <p class="kicker">In your browser</p>
+          <h3>The web demo</h3>
+          <p>The same chat and the same checks, with no phone needed. Upload a document or a chat screenshot from your computer, or try one of the sample offers.</p>
+          <div class="actions"><a class="btn" href="/demo">Open the web demo</a></div>
+          <dl class="commands">
+            <dt><code>menu</code></dt><dd>Show the menu again</dd>
+            <dt><code>@agent-check</code></dt><dd>Look up an agent</dd>
+            <dt><code>@document-check</code></dt><dd>Check a letter or contract</dd>
+            <dt><code>@message-check</code></dt><dd>Check the agent's messages</dd>
+            <dt><code>@done</code></dt><dd>Get your summary</dd>
+          </dl>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section style="padding-top:0">
+    <div class="wrap">
+      <div class="reveal">
+        <p class="eyebrow">What makes it different</p>
+      </div>
+      <div class="principles">
+        <div class="reveal">
+          <h3>Verification without leaving WhatsApp</h3>
+          <p>Players already receive offers on WhatsApp. They can check them in the same place, in a few messages.</p>
+        </div>
+        <div class="reveal">
+          <h3>Pattern matching across cases</h3>
+          <p>Each check makes the next one stronger: a number or letter reused under a new club's name is caught.</p>
+        </div>
+        <div class="reveal">
+          <h3>Flags risk, does not fake certainty</h3>
+          <p>We show the evidence and quote the source. "Not confirmed" never means fake, and a licence never means an offer is real.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="how" id="team">
+    <div class="wrap">
+      <div class="reveal">
+        <p class="eyebrow">The team</p>
+        <h2 style="margin-top:14px">Built in Nairobi.</h2>
+      </div>
+      <div class="team">
+        <div class="person reveal">
+          <img src="/assets/team-joy.jpg" alt="Joy Melvine" width="480" height="720" loading="lazy" />
+          <h3>Joy Melvine</h3>
+          <p>Data Scientist · Research Lead</p>
+        </div>
+        <div class="person reveal">
+          <img src="/assets/team-jenas.jpg" alt="Jenas Jermaine" width="480" height="720" loading="lazy" />
+          <h3>Jenas Jermaine</h3>
+          <p>ML Engineer · Team Lead</p>
+        </div>
+        <div class="person reveal">
+          <img src="/assets/team-esther.jpg" alt="Esther Oyoo" width="480" height="853" loading="lazy" />
+          <h3>Esther Oyoo</h3>
+          <p>Software Developer · Product Design Lead</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="closing">
+    <div class="wrap">
+      <div class="reveal">
+        <h2>Catching fake agents offside.</h2>
+        <p class="lead">Before you pay a fee or book a flight, send us the offer. It takes a few minutes, and it is free.</p>
+        <div class="actions">
+          <a class="btn go" href="https://wa.me/254107842180?text=Hi" target="_blank" rel="noopener">Chat on WhatsApp</a>
+          <a class="btn" href="/demo">Try the web demo</a>
+        </div>
+      </div>
+      <div class="photo reveal">
+        <img src="/assets/offside-flag.jpg" alt="An assistant referee raising the offside flag" width="1100" height="1375" loading="lazy" />
+        <span class="credit">Photo: Chris Wade</span>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <a class="logo" href="#" aria-label="OffsAid home"><img src="/assets/ball.png" alt="" />ffsAid</a>
+    <span>Findings are evidence, not a verdict.</span>
+    <a href="/demo">Web demo</a>
+    <a href="/admin/review">KEFWA reviewers</a>
+  </div>
+</footer>
+
+<script>
+  // Header border once the page scrolls, and a gentle fade-in for sections.
+  const bar = document.getElementById("top");
+  const onScroll = () => bar.classList.toggle("scrolled", window.scrollY > 8);
+  addEventListener("scroll", onScroll, { passive: true });
+  onScroll();
+  const items = document.querySelectorAll(".reveal");
+  if ("IntersectionObserver" in window) {
+    const io = new IntersectionObserver(entries => entries.forEach(e => {
+      if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); }
+    }), { rootMargin: "0px 0px -8% 0px" });
+    items.forEach(el => io.observe(el));
+  } else {
+    items.forEach(el => el.classList.add("in"));
+  }
+</script>
+</body>
+</html>
