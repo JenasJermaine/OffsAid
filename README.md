@@ -178,7 +178,11 @@ front) and subscribe to `messages`. Set `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER
 `WHATSAPP_VERIFY_TOKEN` and `WHATSAPP_APP_SECRET`. With the app secret set, unsigned requests
 are rejected.
 
-When a player forwards a PDF or an image, the bot:
+Both webhooks (Meta and Twilio) run the same guided chat as the browser demo (`app/conversation.py`,
+see "Browser demo" below): a menu, `@agent-check`, `@document-check`, `@message-check` and `done`. One
+chat per WhatsApp number is kept in memory (`app/chat_sessions.py`), so a restart sends the player back
+to the menu. The WhatsApp number is the contact KEFWA receives when a case is referred. When a player
+forwards a PDF or an image, the bot:
 
 1. replies "we received your document, this can take a minute",
 2. runs the document check and sends the first report (inconsistencies, warning signs,
@@ -188,10 +192,10 @@ When a player forwards a PDF or an image, the bot:
    with each claim's status and source link, the club's official contact and the draft message.
 
 The replies are templates filled from the check results, not free-form model text. Other
-file types get a "PDF, PNG or JPEG only" reply, and text messages get a short explanation.
+file types get a "PDF, PNG or JPEG only" reply.
 Meta's webhook retries are processed once (`inbound_messages`). The player's number is stored
-only as a salted hash. Without `WHATSAPP_TOKEN`, replies are logged instead of sent. The
-agent check (Step 1) is not wired to WhatsApp; it stays at `/v1/agent-check`.
+only as a salted hash, except in a KEFWA referral. Without `WHATSAPP_TOKEN`, replies are logged
+instead of sent. The agent check (Step 1) is reached on WhatsApp through `@agent-check`.
 
 Twilio uses the same replies on `POST /twilio/webhook`. Set `TWILIO_ACCOUNT_SID`,
 `TWILIO_AUTH_TOKEN` and `TWILIO_WHATSAPP_FROM` (with the `whatsapp:` prefix). Point the
@@ -363,8 +367,7 @@ summary refers the case to KEFWA: players are told at the start, and again then,
 their phone number and the findings so they can contact them. Referrals and linking escalations show
 on the KEFWA review page `/admin/review` (login `ADMIN_USERNAME` / `ADMIN_PASSWORD`).
 Documents go through `whatsapp_webhook._send_offer`, the same checks as a WhatsApp document. The
-WhatsApp/Twilio webhooks still use the older one-step flow; switching them to `conversation.handle`
-is a small change. The paperclip menu has sample files. "Lakeview United offer"
+WhatsApp and Twilio webhooks run this same chat. The paperclip menu has sample files. "Lakeview United offer"
 (`data/demo/lakeview_united_offer.pdf`, invented, from `scripts/make_demo_letter.py`) reuses a phone
 number and a till from the simulated linking seeds under a new club name, so on a seeded Postgres
 database the report shows flagged links and a KEFWA escalation. Chats live in memory and are lost

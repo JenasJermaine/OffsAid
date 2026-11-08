@@ -13,6 +13,7 @@ import app.document_extraction as extraction
 import app.llm
 import app.web_check_jobs as jobs
 import app.whatsapp_webhook as webhook
+from app import conversation
 from app.config import settings
 from app.document_schemas import DocumentFields, to_form
 from app.models import WebCheck, WebCheckLog
@@ -88,7 +89,8 @@ def test_document_gets_an_ack_then_the_report(client, whatsapp) -> None:
     assert "*OffsAid document check*" in bodies[1]
     assert "EUR 450" in bodies[1]  # the payment request, found even without the model
     assert "*Wording patterns in the agent's messages*" not in bodies[1]
-    assert len(bodies) == 2  # no API key, so no web check
+    assert bodies[2] == conversation.NEXT  # the chat's "anything else?" prompt
+    assert len(bodies) == 3  # no API key, so no web check
 
 
 def test_meta_retries_are_processed_once(client, whatsapp) -> None:
@@ -115,13 +117,13 @@ def test_image_reply_includes_the_wording_section(client, whatsapp) -> None:
     assert "could not read the chat" in wording  # no API key, so the bubbles were not transcribed
     assert "scam" not in wording.lower()
     assert "safe" not in wording.lower()
-    assert len(bodies) == 2
+    assert len(bodies) == 3  # ACK, report, next-check prompt
 
 
 def test_text_and_unsupported_files_get_guidance(client, whatsapp) -> None:
     _post(client, _payload({"from": PLAYER, "id": "wamid.t", "type": "text", "text": {"body": "hi"}}))
     _post(client, _payload(_document("wamid.w", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")))
-    assert [body for _, body in whatsapp.sent] == [webhook.report.HELP, webhook.report.UNSUPPORTED]
+    assert [body for _, body in whatsapp.sent] == [conversation.WELCOME, webhook.report.UNSUPPORTED]
 
 
 def test_status_updates_are_ignored(client, whatsapp) -> None:
@@ -152,7 +154,8 @@ def test_web_check_runs_in_the_background_and_sends_a_second_message(
     monkeypatch.setattr(jobs, "run_web_check", fake_agent)
     _post(client, _payload(_document("wamid.web")))
     bodies = [body for _, body in whatsapp.sent]
-    assert len(bodies) == 3
+    assert len(bodies) == 4  # ACK, report, web report, next-check prompt
+    assert bodies[3] == conversation.NEXT
     assert "checking the club's own website" in bodies[1]
     assert "Contradicted" in bodies[2] and "https://www.hjk.fi/contact" in bodies[2]
     assert "info@hjk.fi" in bodies[2]

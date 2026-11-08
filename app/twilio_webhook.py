@@ -1,8 +1,9 @@
 """Twilio WhatsApp webhook.
 
-POST /twilio/webhook  Form fields from Twilio. We return empty TwiML at once, then
-run the same document, wording and web checks as the Meta webhook and send the
-reports through Twilio's Messages API.
+POST /twilio/webhook  Form fields from Twilio. We return empty TwiML at once, then pass the
+message (text, caption, and a PDF/PNG/JPEG if attached) to the OffsAid chat (app/conversation.py):
+the same menu, @agent-check / @document-check / @message-check, summary and KEFWA referral as the
+web demo at /demo. Replies go out through Twilio's Messages API.
 """
 
 from __future__ import annotations
@@ -13,10 +14,12 @@ import httpx
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 from fastapi.responses import Response
 
+from app.chat_sessions import get_conversation
+from app.conversation import handle
 from app.document_extraction import SUPPORTED_TYPES
 from app.twilio_whatsapp import get_twilio, public_url, valid_signature
 from app.whatsapp import MediaTooLarge
-from app.whatsapp_webhook import _first_time, _send_offer, report
+from app.whatsapp_webhook import _first_time, report
 
 log = logging.getLogger(__name__)
 router = APIRouter()
@@ -46,26 +49,27 @@ def handle_twilio_message(fields: dict[str, str]) -> None:
         count = int(fields.get("NumMedia") or "0")
     except ValueError:
         count = 0
-    if count < 1 or not fields.get("MediaUrl0"):
-        _send(sender, report.HELP)
-        return
-    mime = (fields.get("MediaContentType0") or "").split(";")[0].strip().lower()
-    if mime == "image/jpg":
-        mime = "image/jpeg"
-    if mime not in SUPPORTED_TYPES:
-        _send(sender, report.UNSUPPORTED)
-        return
-    _send(sender, report.ACK)
-    try:
-        downloaded = get_twilio().download_media(fields["MediaUrl0"])
-    except MediaTooLarge:
-        _send(sender, report.TOO_LARGE)
-        return
-    except (httpx.HTTPError, ValueError):
-        log.exception("Could not download Twilio media")
-        _send(sender, report.FAILED)
-        return
-    _send_offer(sender, downloaded.data, downloaded.mime_type or mime, _send, fields.get("MessageSid", ""))
+    file = None
+    if count >= 1 and fields.get("MediaUrl0"):
+        mime = (fields.get("MediaContentType0") or "").split(";")[0].strip().lower()
+        if mime == "image/jpg":
+            mime = "image/jpeg"
+        if mime not in SUPPORTED_TYPES:
+            _send(sender, report.UNSUPPORTED)
+            return
+        try:
+            downloaded = get_twilio().download_media(fields["MediaUrl0"])
+        except MediaTooLarge:
+            _send(sender, report.TOO_LARGE)
+            return
+        except (httpx.HTTPError, ValueError):
+            log.exception("Could not download Twilio media")
+            _send(sender, report.FAILED)
+            return
+        file = (downloaded.data, downloaded.mime_type or mime)
+    # The WhatsApp number is the contact KEFWA receives on referral (the welcome message says so).
+    conv = get_conversation(sender, contact=sender.removeprefix("whatsapp:"))
+    handle(conv, fields.get("Body", ""), file, lambda body: _send(sender, body), fields.get("MessageSid", ""))
 
 
 @router.post("/twilio/webhook", include_in_schema=False)

@@ -22,6 +22,13 @@ from app.seed import load_agents_from_csv
 
 
 @pytest.fixture(autouse=True)
+def _reset_chats() -> None:
+    from app.chat_sessions import reset
+
+    reset()
+
+
+@pytest.fixture(autouse=True)
 def _reset_db() -> Generator[None, None, None]:
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)

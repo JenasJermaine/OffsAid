@@ -2,14 +2,15 @@
 
 GET  /webhook  Meta's subscription check (hub.verify_token).
 POST /webhook  Incoming messages. Signed by Meta (X-Hub-Signature-256), answered at once;
-               the work runs in the background:
+               the work runs in the background. Each message goes to the OffsAid chat
+               (app/conversation.py, the same flow as the web demo and the Twilio webhook).
+               A document runs through _send_offer below:
                  1. "checking, this can take a minute" reply
                  2. document check (Step 2) -> first report
                     images also get the wording section (other party's messages only)
                     then cross-case linking adds "Comparison with earlier cases" (app/linking_step.py)
                  3. web-checking agent (Step 3) -> second report, when the document names a club
-Text messages get a short explanation of what to send. Each message id is processed once,
-because Meta retries webhooks.
+Each message id is processed once, because Meta retries webhooks.
 """
 
 from __future__ import annotations
@@ -156,24 +157,34 @@ def _send_offer(sender: str, data: bytes, mime: str, send, message_id: str = "",
 
 
 def handle_message(message: dict) -> None:
+    from app.chat_sessions import get_conversation
+    from app.conversation import handle
+
     sender = message["from"]
     kind = message.get("type")
-    if kind not in {"document", "image"}:
-        _send(sender, report.HELP)
+    text, file = "", None
+    if kind == "text":
+        text = (message.get("text") or {}).get("body", "")
+    elif kind in {"document", "image"}:
+        media = message.get(kind) or {}
+        text = media.get("caption", "")
+        mime = (media.get("mime_type") or "").split(";")[0].strip()
+        if mime not in SUPPORTED_TYPES or not media.get("id"):
+            _send(sender, report.UNSUPPORTED)
+            return
+        try:
+            downloaded = get_whatsapp().download_media(media["id"])
+        except MediaTooLarge:
+            _send(sender, report.TOO_LARGE)
+            return
+        except (httpx.HTTPError, KeyError, ValueError):
+            log.exception("Could not download WhatsApp media")
+            _send(sender, report.FAILED)
+            return
+        file = (downloaded.data, downloaded.mime_type or mime)
+    else:
+        _send(sender, report.UNSUPPORTED)  # voice notes, stickers, locations...
         return
-    media = message.get(kind) or {}
-    mime = (media.get("mime_type") or "").split(";")[0].strip()
-    if mime not in SUPPORTED_TYPES or not media.get("id"):
-        _send(sender, report.UNSUPPORTED)
-        return
-    _send(sender, report.ACK)
-    try:
-        downloaded = get_whatsapp().download_media(media["id"])
-    except MediaTooLarge:
-        _send(sender, report.TOO_LARGE)
-        return
-    except (httpx.HTTPError, KeyError, ValueError):
-        log.exception("Could not download WhatsApp media")
-        _send(sender, report.FAILED)
-        return
-    _send_offer(sender, downloaded.data, downloaded.mime_type or mime, _send, message.get("id", ""))
+    # Meta sends the number without "+"; it is the contact KEFWA receives on referral.
+    conv = get_conversation(f"whatsapp:{sender}", contact=f"+{sender.lstrip('+')}")
+    handle(conv, text, file, lambda body: _send(sender, body), message.get("id", ""))
