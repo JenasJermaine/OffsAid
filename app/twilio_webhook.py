@@ -65,7 +65,7 @@ def handle_twilio_message(fields: dict[str, str]) -> None:
         log.exception("Could not download Twilio media")
         _send(sender, report.FAILED)
         return
-    _send_offer(sender, downloaded.data, downloaded.mime_type or mime, _send)
+    _send_offer(sender, downloaded.data, downloaded.mime_type or mime, _send, fields.get("MessageSid", ""))
 
 
 @router.post("/twilio/webhook", include_in_schema=False)

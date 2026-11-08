@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>OffsAid Chat Demo</title>
+<style>
+  :root {
+    --app-bg: #d1d7db;
+    --header: #008069;
+    --header-ink: #ffffff;
+    --chat-bg: #efeae2;
+    --doodle: rgba(0, 0, 0, 0.035);
+    --in: #ffffff;
+    --out: #d9fdd3;
+    --ink: #111b21;
+    --muted: #667781;
+    --bar: #f0f2f5;
+    --field: #ffffff;
+    --accent: #00a884;
+    --tick-read: #53bdeb;
+    --card: #ffffff;
+    --banner: #ffeecd;
+    --banner-ink: #54656f;
+    --shadow: 0 1px 0.5px rgba(11, 20, 26, 0.13);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --app-bg: #0c1317;
+      --header: #202c33;
+      --header-ink: #e9edef;
+      --chat-bg: #0b141a;
+      --doodle: rgba(255, 255, 255, 0.025);
+      --in: #202c33;
+      --out: #005c4b;
+      --ink: #e9edef;
+      --muted: #8696a0;
+      --bar: #202c33;
+      --field: #2a3942;
+      --card: #233138;
+      --banner: #182229;
+      --banner-ink: #ffd279;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--app-bg);
+    color: var(--ink);
+    font: 14.2px/1.4 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+  .phone {
+    width: 100%;
+    max-width: 440px;
+    height: 100vh;
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    background: var(--chat-bg);
+    position: relative;
+    overflow: hidden;
+  }
+  @media (min-width: 600px) {
+    .phone {
+      height: min(860px, calc(100vh - 40px));
+      border-radius: 28px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25), 0 0 0 10px #111;
+    }
+  }
+
+  header {
+    background: var(--header);
+    color: var(--header-ink);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    flex: none;
+  }
+  .avatar {
+    width: 40px; height: 40px; border-radius: 50%;
+    background: #ffffff; color: #008069;
+    display: grid; place-items: center;
+    font-weight: 700; font-size: 15px; flex: none;
+  }
+  .who { flex: 1; min-width: 0; }
+  .who b { display: block; font-size: 16px; font-weight: 600; }
+  .who span { font-size: 12.5px; opacity: 0.85; }
+  .icon-btn {
+    background: none; border: 0; color: inherit; cursor: pointer;
+    width: 38px; height: 38px; border-radius: 50%;
+    display: grid; place-items: center; flex: none;
+  }
+  .icon-btn:hover { background: rgba(255, 255, 255, 0.12); }
+  .icon-btn svg { width: 22px; height: 22px; fill: currentColor; }
+
+  #log {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px 14px 16px;
+    background-color: var(--chat-bg);
+    background-image: radial-gradient(var(--doodle) 1.2px, transparent 1.3px);
+    background-size: 18px 18px;
+  }
+  .day, .notice {
+    margin: 8px auto 10px;
+    width: fit-content;
+    max-width: 92%;
+    padding: 5px 12px;
+    border-radius: 8px;
+    font-size: 12.3px;
+    text-align: center;
+    box-shadow: var(--shadow);
+  }
+  .day { background: var(--card); color: var(--muted); }
+  .notice { background: var(--banner); color: var(--banner-ink); }
+
+  .row { display: flex; margin: 2px 0; }
+  .row.out { justify-content: flex-end; }
+  .row + .row.gap { margin-top: 10px; }
+  .bubble {
+    position: relative;
+    max-width: 85%;
+    padding: 6px 8px 8px 9px;
+    border-radius: 8px;
+    box-shadow: var(--shadow);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  .in .bubble { background: var(--in); border-top-left-radius: 0; }
+  .out .bubble { background: var(--out); border-top-right-radius: 0; }
+  .meta {
+    float: right;
+    margin: 6px 0 -4px 10px;
+    font-size: 11px;
+    color: var(--muted);
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    white-space: nowrap;
+  }
+  .meta svg { width: 16px; height: 11px; fill: var(--muted); }
+  .meta.read svg { fill: var(--tick-read); }
+  .bubble a { color: #027eb5; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .bubble a { color: #53bdeb; } }
+
+  .doc {
+    display: flex; align-items: center; gap: 10px;
+    background: rgba(0, 0, 0, 0.05);
+    border-radius: 6px;
+    padding: 10px;
+    margin-bottom: 2px;
+    min-width: 220px;
+    white-space: normal;
+  }
+  .doc .badge {
+    width: 34px; height: 40px; border-radius: 4px;
+    background: #e5484d; color: #fff; font-size: 10px; font-weight: 700;
+    display: grid; place-items: center; flex: none;
+  }
+  .doc .name { font-size: 13.5px; overflow-wrap: anywhere; }
+  .doc .size { font-size: 11.5px; color: var(--muted); }
+  .bubble img.shot {
+    display: block; max-width: 240px; max-height: 300px;
+    border-radius: 6px; margin-bottom: 4px;
+  }
+
+  .typing .bubble { padding: 12px 14px; }
+  .dots { display: inline-flex; gap: 4px; }
+  .dots i {
+    width: 7px; height: 7px; border-radius: 50%; background: var(--muted);
+    animation: blink 1.2s infinite ease-in-out;
+  }
+  .dots i:nth-child(2) { animation-delay: 0.2s; }
+  .dots i:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes blink { 0%, 80%, 100% { opacity: 0.25; } 40% { opacity: 1; } }
+
+  footer {
+    background: var(--bar);
+    display: flex; align-items: flex-end; gap: 6px;
+    padding: 8px 8px calc(8px + env(safe-area-inset-bottom));
+    flex: none;
+    position: relative;
+  }
+  footer .icon-btn { color: var(--muted); }
+  footer .icon-btn:hover { background: rgba(0, 0, 0, 0.06); }
+  #text {
+    flex: 1; min-width: 0;
+    border: 0; outline: 0; resize: none;
+    background: var(--field); color: var(--ink);
+    border-radius: 20px;
+    padding: 9px 14px;
+    font: inherit;
+    max-height: 120px;
+  }
+  #send {
+    background: var(--accent); color: #fff;
+  }
+  #send:hover { background: var(--accent); filter: brightness(1.08); }
+
+  .chips {
+    display: flex; gap: 6px; overflow-x: auto;
+    padding: 6px 8px 0; background: var(--bar); flex: none;
+    scrollbar-width: none;
+  }
+  .chips::-webkit-scrollbar { display: none; }
+  .chip {
+    flex: none; border: 1px solid rgba(0, 168, 132, 0.45); background: var(--field); color: var(--accent);
+    border-radius: 16px; padding: 5px 12px; font: inherit; font-size: 13px; cursor: pointer;
+  }
+  .chip:hover { background: rgba(0, 168, 132, 0.08); }
+  .fill {
+    display: block; margin-top: 6px; border: 0; background: none; color: var(--accent);
+    font: inherit; font-weight: 600; cursor: pointer; padding: 4px 0;
+  }
+  .caption { display: block; margin-top: 4px; }
+  .notice a { color: inherit; font-weight: 600; }
+  .menu {
+    position: absolute;
+    left: 8px; bottom: 60px;
+    width: min(320px, calc(100% - 16px));
+    background: var(--card);
+    color: var(--ink);
+    border-radius: 12px;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25);
+    padding: 6px;
+    display: none;
+    z-index: 5;
+  }
+  .menu.open { display: block; }
+  .menu h4 { margin: 6px 10px 4px; font-size: 11.5px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+  .menu button {
+    display: flex; align-items: center; gap: 10px;
+    width: 100%; text-align: left;
+    background: none; border: 0; color: inherit; font: inherit;
+    padding: 9px 10px; border-radius: 8px; cursor: pointer;
+  }
+  .menu button:hover { background: rgba(0, 0, 0, 0.06); }
+  .menu .dot { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; color: #fff; flex: none; font-size: 11px; font-weight: 700; }
+  .dot.doc-c { background: #7f66ff; }
+  .dot.img-c { background: #007bfc; }
+  .dot.up-c { background: #00a884; }
+</style>
+</head>
+<body>
+<div class="phone">
+  <header>
+    <div class="avatar" aria-hidden="true">OA</div>
+    <div class="who">
+      <b>OffsAid</b>
+      <span id="status">online</span>
+    </div>
+    <button class="icon-btn" id="newchat" title="New chat" aria-label="Start a new chat">
+      <svg viewBox="0 0 24 24"><path d="M12 5V2L8 6l4 4V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/></svg>
+    </button>
+  </header>
+
+  <div id="log" aria-live="polite">
+    <div class="notice">Demo: this page stands in for the OffsAid WhatsApp chat and runs the same checks. Presenter: <a href="/admin/review" target="_blank" rel="noopener">KEFWA review page</a></div>
+    <div class="day">Today</div>
+  </div>
+
+  <div class="chips" id="chips" aria-label="Quick replies">
+    <button type="button" class="chip">@agent-check</button>
+    <button type="button" class="chip">@document-check</button>
+    <button type="button" class="chip">@message-check</button>
+    <button type="button" class="chip">done</button>
+    <button type="button" class="chip">menu</button>
+  </div>
+
+  <footer>
+    <div class="menu" id="menu" role="menu">
+      <h4>Send a file</h4>
+      <button type="button" id="upload"><span class="dot up-c">+</span>Document or photo from this device</button>
+      <p style="margin:2px 10px 6px;font-size:12px;color:var(--muted)">Type a caption first (e.g. @message-check) to send it with the file.</p>
+      <div id="samples"></div>
+    </div>
+    <button class="icon-btn" id="attach" title="Attach" aria-label="Attach a document">
+      <svg viewBox="0 0 24 24"><path d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5a2.5 2.5 0 0 1 5 0v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5a2.5 2.5 0 0 0 5 0V5c0-2.21-1.79-4-4-4S7 2.79 7 5v12.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5V6h-1.5z"/></svg>
+    </button>
+    <textarea id="text" rows="1" placeholder="Message" aria-label="Message"></textarea>
+    <button class="icon-btn" id="send" title="Send" aria-label="Send">
+      <svg viewBox="0 0 24 24"><path d="M2.01 21 23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+    </button>
+    <input type="file" id="file" accept="application/pdf,image/png,image/jpeg" hidden />
+  </footer>
+</div>
+
+<script>
+(() => {
+  const log = document.getElementById("log");
+  const statusEl = document.getElementById("status");
+  const textEl = document.getElementById("text");
+  const fileEl = document.getElementById("file");
+  const menu = document.getElementById("menu");
+  const TICK = '<svg viewBox="0 0 16 11"><path d="M11.07.65 4.85 7.4 2.3 5.03 1.25 6.1l3.65 3.4 7.2-7.8zM14.75.65 8.53 7.4l-.95-.88-1.05 1.13 2.05 1.9 7.2-7.8z"/></svg>';
+
+  let chatId = newId();
+  try { chatId = sessionStorage.getItem("offsaid-chat") || chatId; sessionStorage.setItem("offsaid-chat", chatId); } catch (e) {}
+  let seen = 0;
+  let polling = false;
+  let typingRow = null;
+  const unread = [];
+
+  function newId() {
+    const a = new Uint8Array(12);
+    crypto.getRandomValues(a);
+    return Array.from(a, b => b.toString(16).padStart(2, "0")).join("");
+  }
+  function hhmm(d) { return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); }
+  function esc(s) { return s.replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+
+  // WhatsApp formatting: *bold*, _italic_, ~strike~, links. Escaped first, so message text cannot inject HTML.
+  function format(text) {
+    let h = esc(text);
+    h = h.replace(/(https?:\/\/[^\s<]+[^\s<.,;:)\]'"])/g, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>');
+    h = h.replace(/(^|[\s(])\*([^*\n]+)\*(?=[\s).,:;!?]|$)/g, "$1<b>$2</b>");
+    h = h.replace(/(^|[\s(])_([^_\n]+)_(?=[\s).,:;!?]|$)/g, "$1<i>$2</i>");
+    h = h.replace(/(^|[\s(])~([^~\n]+)~(?=[\s).,:;!?]|$)/g, "$1<s>$2</s>");
+    return h;
+  }
+
+  function addRow(side, inner, at, ticks) {
+    const last = log.lastElementChild;
+    const row = document.createElement("div");
+    row.className = "row " + side + (last && last.classList.contains("row") && !last.classList.contains(side) ? " gap" : "");
+    const meta = '<span class="meta">' + hhmm(at) + (ticks ? TICK : "") + "</span>";
+    row.innerHTML = '<div class="bubble">' + inner + meta + "</div>";
+    if (typingRow) log.insertBefore(row, typingRow); else log.appendChild(row);
+    log.scrollTop = log.scrollHeight;
+    return row;
+  }
+
+  function setTyping(on) {
+    statusEl.textContent = on ? "typing…" : "online";
+    if (on && !typingRow) {
+      typingRow = document.createElement("div");
+      typingRow.className = "row in typing";
+      typingRow.innerHTML = '<div class="bubble"><span class="dots"><i></i><i></i><i></i></span></div>';
+      log.appendChild(typingRow);
+      log.scrollTop = log.scrollHeight;
+    } else if (!on && typingRow) {
+      typingRow.remove();
+      typingRow = null;
+    }
+  }
+
+  function markRead() {
+    while (unread.length) unread.pop().querySelector(".meta").classList.add("read");
+  }
+
+  async function poll() {
+    if (polling) return;
+    polling = true;
+    try {
+      for (;;) {
+        const r = await fetch(`/v1/demo/chats/${chatId}/messages?after=${seen}`);
+        if (!r.ok) throw new Error("poll " + r.status);
+        const data = await r.json();
+        if (data.messages.length) markRead();
+        for (const m of data.messages) {
+          const row = addRow("in", format(m.text), new Date(m.at * 1000), false);
+          if (/^Name:/.test(m.text)) {
+            const b = document.createElement("button");
+            b.type = "button"; b.className = "fill"; b.textContent = "Fill in this form";
+            b.addEventListener("click", () => { textEl.value = m.text; autosize(); textEl.focus(); });
+            row.querySelector(".bubble").insertBefore(b, row.querySelector(".meta"));
+          }
+        }
+        seen = data.total;
+        setTyping(data.busy);
+        if (!data.busy) break;
+        await new Promise(res => setTimeout(res, 1200));
+      }
+    } catch (e) {
+      setTyping(false);
+      notice("Connection to OffsAid lost. Check that the server is running, then send again.");
+    } finally {
+      polling = false;
+    }
+  }
+
+  function notice(text) {
+    const n = document.createElement("div");
+    n.className = "notice";
+    n.textContent = text;
+    log.appendChild(n);
+    log.scrollTop = log.scrollHeight;
+  }
+
+  async function post(form) {
+    form.append("chat_id", chatId);
+    setTyping(true);
+    try {
+      const r = await fetch("/v1/demo/messages", { method: "POST", body: form });
+      if (!r.ok) throw new Error("send " + r.status);
+    } catch (e) {
+      setTyping(false);
+      notice("Message not sent. Check that the server is running.");
+      return;
+    }
+    poll();
+  }
+
+  function sendText() {
+    const text = textEl.value.trim();
+    if (!text) return;
+    textEl.value = "";
+    autosize();
+    unread.push(addRow("out", format(text), new Date(), true));
+    const form = new FormData();
+    form.append("text", text);
+    post(form);
+  }
+
+  function sizeLabel(bytes) {
+    return bytes < 1024 * 1024 ? Math.max(1, Math.round(bytes / 1024)) + " kB" : (bytes / 1024 / 1024).toFixed(1) + " MB";
+  }
+
+  function sendFile(file, caption) {
+    caption = (caption !== undefined ? caption : textEl.value).trim();
+    textEl.value = ""; autosize();
+    let inner;
+    if (file.type.startsWith("image/")) {
+      inner = '<img class="shot" alt="" src="' + URL.createObjectURL(file) + '">';
+    } else {
+      const ext = (file.name.split(".").pop() || "file").toUpperCase().slice(0, 4);
+      inner = '<div class="doc"><div class="badge">' + esc(ext) + '</div><div><div class="name">' + esc(file.name) +
+              '</div><div class="size">' + sizeLabel(file.size) + " · " + esc(ext) + "</div></div></div>";
+    }
+    if (caption) inner += '<span class="caption">' + format(caption) + "</span>";
+    unread.push(addRow("out", inner, new Date(), true));
+    const form = new FormData();
+    form.append("file", file, file.name);
+    form.append("text", caption);
+    post(form);
+  }
+
+  async function sendSample(s) {
+    menu.classList.remove("open");
+    try {
+      const r = await fetch("/v1/demo/samples/" + encodeURIComponent(s.name));
+      if (!r.ok) throw new Error();
+      const blob = await r.blob();
+      sendFile(new File([blob], s.name, { type: s.mime }), s.mime.startsWith("image/") ? "@message-check" : "@document-check");
+    } catch (e) {
+      notice("Could not load that sample.");
+    }
+  }
+
+  async function loadSamples() {
+    try {
+      const list = await (await fetch("/v1/demo/samples")).json();
+      const box = document.getElementById("samples");
+      const groups = [["Samples for @document-check", list.filter(s => !s.mime.startsWith("image/"))],
+                      ["Samples for @message-check", list.filter(s => s.mime.startsWith("image/"))]];
+      for (const [title, items] of groups) {
+        if (!items.length) continue;
+        box.insertAdjacentHTML("beforeend", "<h4>" + title + "</h4>");
+        for (const s of items) addSample(box, s);
+      }
+    } catch (e) {}
+  }
+
+  function addSample(box, s) {
+    const b = document.createElement("button");
+    b.type = "button";
+    const img = s.mime.startsWith("image/");
+    b.innerHTML = '<span class="dot ' + (img ? "img-c" : "doc-c") + '">' + (img ? "IMG" : "PDF") + "</span>";
+    b.appendChild(document.createTextNode(s.label));
+    b.addEventListener("click", () => sendSample(s));
+    box.appendChild(b);
+  }
+
+  function autosize() {
+    textEl.style.height = "auto";
+    textEl.style.height = Math.min(textEl.scrollHeight, 120) + "px";
+  }
+
+  document.getElementById("send").addEventListener("click", sendText);
+  document.querySelectorAll(".chip").forEach(c => c.addEventListener("click", () => { textEl.value = c.textContent; sendText(); }));
+  textEl.addEventListener("keydown", e => {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendText(); }
+  });
+  textEl.addEventListener("input", autosize);
+  document.getElementById("attach").addEventListener("click", e => { e.stopPropagation(); menu.classList.toggle("open"); });
+  document.getElementById("upload").addEventListener("click", () => { menu.classList.remove("open"); fileEl.click(); });
+  document.addEventListener("click", e => { if (!menu.contains(e.target)) menu.classList.remove("open"); });
+  fileEl.addEventListener("change", () => {
+    if (fileEl.files[0]) sendFile(fileEl.files[0]);
+    fileEl.value = "";
+  });
+  document.getElementById("newchat").addEventListener("click", () => {
+    chatId = newId();
+    try { sessionStorage.setItem("offsaid-chat", chatId); } catch (e) {}
+    seen = 0;
+    setTyping(false);
+    log.querySelectorAll(".row, .notice:not(:first-child)").forEach(n => n.remove());
+    poll();
+  });
+
+  loadSamples();
+  poll();   // opens the chat; the bot's greeting arrives first, as on WhatsApp
+})();
+</script>
+</body>
+</html>

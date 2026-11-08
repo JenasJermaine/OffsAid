@@ -14,10 +14,3 @@ phonenumbers>=8.13.4
 python-multipart>=0.0.20
 pytesseract>=0.3.13
 anthropic>=0.125.0
-# Scam-language classifier. Install the CPU wheel, not the default CUDA build
-# (the loaded model needs about 1 to 1.5 GB, so run one worker):
-#   pip install torch --index-url https://download.pytorch.org/whl/cpu
-# transformers brings safetensors.
-torch
-transformers>=4.40
-sentencepiece

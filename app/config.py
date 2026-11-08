@@ -1,8 +1,18 @@
+import re
+
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    @field_validator("database_url")
+    @classmethod
+    def _use_psycopg3(cls, url: str) -> str:
+        # Render and most hosts hand out postgres:// or postgresql://, which SQLAlchemy maps to
+        # psycopg2 (not installed). Use the psycopg 3 driver from requirements.txt instead.
+        return re.sub(r"^postgres(?:ql)?://", "postgresql+psycopg://", url)
 
     # Database
     database_url: str = "postgresql+psycopg://offsaid:offsaid@localhost:5432/offsaid"
@@ -48,10 +58,19 @@ class Settings(BaseSettings):
 
     # Scam-language classifier folder. Missing directory: rules_only mode (fee rule).
     offsaid_model_dir: str = "models/offsaid_classifier_v4"
+    scam_model_api_url: str = ""
+    scam_model_api_token: str = ""
+    scam_model_timeout_seconds: int = 120
 
-    # Cross-case linking
-    link_text_similarity: float = 0.85
-    link_phash_max_distance: int = 6
+    # Cross-case linking. Matching thresholds live in app/case_linking.py only (untested starting points).
+    # Secret for the HMAC of phone numbers, accounts and emails, at least 32 characters. Permanent:
+    # changing or losing it makes every stored hash unmatchable (wipe the linking tables and re-seed).
+    offsaid_hash_key: str = ""
+    # Linking runs per WhatsApp user per hour, so the bot cannot be used to probe the database.
+    linking_max_per_hour: int = 10
+
+    # Browser demo of the WhatsApp chat at /demo (same pipeline as the webhooks). Turn off in production.
+    demo_chat_enabled: bool = True
 
     # KEFWA review page (HTTP Basic). Empty password = page disabled.
     admin_username: str = "kefwa"

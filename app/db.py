@@ -1,6 +1,6 @@
 from collections.abc import Generator
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -29,14 +29,12 @@ def is_postgres() -> bool:
 
 
 def init_db() -> None:
-    """Create the pgvector extension (Postgres only) and all tables, including the
-    parked pipeline tables. Not called yet: Part 1 uses Base.metadata.create_all in main."""
+    """Create all SQLAlchemy tables, including the parked pipeline tables. Not called yet:
+    Part 1 uses Base.metadata.create_all in main. The cross-case linking tables are
+    plain-SQL Postgres migrations instead (python -m scripts.migrate)."""
     import app.models  # noqa: F401  registers tables on Base.metadata
     import app.pipeline_models  # noqa: F401
 
-    if is_postgres():
-        with engine.begin() as conn:
-            conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
     Base.metadata.create_all(bind=engine)
 
 

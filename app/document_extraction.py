@@ -117,6 +117,17 @@ def _load_image(data: bytes, mime_type: str) -> LoadedDocument:
     return LoadedDocument(data, mime_type, [_ocr(image)], False, metadata, [str(imagehash.phash(image))])
 
 
+def first_page_image(data: bytes, mime_type: str) -> Image.Image:
+    """Page 1 as an image, in memory only (the letter fingerprint for cross-case linking).
+    Call it after load_document has accepted the file; nothing is written to disk."""
+    if mime_type == "application/pdf":
+        with fitz.open(stream=data, filetype="pdf") as pdf:
+            return _render(pdf[0], 1.0)
+    image = Image.open(io.BytesIO(data))
+    image.load()
+    return image
+
+
 def _render(page: fitz.Page, zoom: float) -> Image.Image:
     pixmap = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom), alpha=False)
     return Image.frombytes("RGB", (pixmap.width, pixmap.height), pixmap.samples)

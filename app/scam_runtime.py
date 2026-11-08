@@ -8,6 +8,9 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from urllib.parse import urlparse
+
+import httpx
 
 from app.chat_extraction import ChatShot, extract_chat, to_checker_input
 from app.config import settings
@@ -22,12 +25,53 @@ GROUP_NOTE = (
 )
 
 
-def load_checker() -> ScamLanguageChecker:
-    """Load the model from OFFSAID_MODEL_DIR, or a rules-only checker if that fails.
+class RemoteScamLanguageChecker(ScamLanguageChecker):
+    def __init__(self, base_url: str, api_token: str, timeout: int) -> None:
+        if urlparse(base_url).scheme != "https" or not urlparse(base_url).netloc:
+            raise ValueError("SCAM_MODEL_API_URL must be an HTTPS URL.")
+        # Accept the endpoint with or without the /classify suffix (the Modal URL is often copied with it).
+        self.base_url = base_url.rstrip("/").removesuffix("/classify")
+        self.api_token = api_token
+        self.timeout = timeout
+        self.mode = "model+rules"
 
-    A missing folder returns immediately. Calling the loader on a path that is not
-    a local directory would make the library look for a download.
-    """
+    def check_chat(self, extraction) -> dict:
+        messages = extraction.get("messages", []) if isinstance(extraction, dict) else extraction
+        try:
+            response = httpx.post(
+                f"{self.base_url}/classify",
+                json={"messages": messages},
+                headers={"Authorization": f"Bearer {self.api_token}"},
+                timeout=self.timeout,
+            )
+            response.raise_for_status()
+            result = response.json()
+        except (httpx.HTTPError, ValueError):
+            log.exception("Remote scam-language classifier failed; using the local fee rule only")
+            return ScamLanguageChecker().check_chat(extraction)
+        if (
+            not isinstance(result, dict)
+            or not isinstance(result.get("flags"), list)
+            or not isinstance(result.get("messages_checked"), int)
+            or result.get("mode") != "model+rules"
+        ):
+            log.error("Remote scam-language classifier returned an invalid response; using the local fee rule only")
+            return ScamLanguageChecker().check_chat(extraction)
+        return result
+
+
+def load_checker() -> ScamLanguageChecker:
+    """Load the hosted classifier when configured, otherwise use local weights or rules."""
+    if settings.scam_model_api_url:
+        if not settings.scam_model_api_token:
+            raise ValueError("SCAM_MODEL_API_TOKEN is required when SCAM_MODEL_API_URL is set.")
+        log.info("Using remote scam-language classifier at %s", settings.scam_model_api_url)
+        return RemoteScamLanguageChecker(
+            settings.scam_model_api_url,
+            settings.scam_model_api_token,
+            settings.scam_model_timeout_seconds,
+        )
+
     model_dir = settings.offsaid_model_dir
     if not Path(model_dir).is_dir():
         log.warning(

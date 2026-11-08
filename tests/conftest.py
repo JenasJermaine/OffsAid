@@ -8,6 +8,9 @@ os.environ["LOOKUP_HASH_SALT"] = "test-salt"
 # Point away from the real weights so the suite stays on the fee rule and does not
 # load the model or try to download one. The smoke script loads the real folder.
 os.environ["OFFSAID_MODEL_DIR"] = "models/not-installed-for-tests"
+# Never call the hosted Modal classifier from tests, even when .env configures it.
+os.environ["SCAM_MODEL_API_URL"] = ""
+os.environ["SCAM_MODEL_API_TOKEN"] = ""
 
 import pytest
 from fastapi.testclient import TestClient

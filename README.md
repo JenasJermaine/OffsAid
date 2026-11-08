@@ -120,20 +120,41 @@ show what was read. Nothing here stores the raw chat.
 
 The checker is a fine-tuned classifier plus two rule layers (negation, and a fee rule). It
 loads once at startup from `OFFSAID_MODEL_DIR` (default `models/offsaid_classifier_v4`).
-The weights are not in git; see `models/README.md`. On a server the folder has to be
-downloaded or mounted before startup. It needs about 1 to 1.5 GB once loaded, so keep a
-single worker. If the folder is missing, the process still starts and `mode` is
-`rules_only`: only the fee rule can fire, and the report says so. A rule flag's score of
-0.5 is a placeholder, not a probability. Model scores are uncalibrated and are not shown
-as a chance of fraud.
+The weights are not in git; see `models/README.md`. For local inference, the folder has to
+be downloaded or mounted before startup; it needs about 1 to 1.5 GB once loaded, so keep a
+single worker. If neither local weights nor a Modal endpoint is configured, the process
+still starts in `rules_only` mode: only the fee rule can fire, and the report says so. A
+rule flag's score of 0.5 is a placeholder, not a probability. Model scores are uncalibrated
+and are not shown as a chance of fraud.
 
-Install the CPU build of PyTorch (a default install may pull CUDA):
+For local inference with the weights on disk, install the optional CPU model dependencies:
 
 ```bash
-pip install torch --index-url https://download.pytorch.org/whl/cpu
+pip install -r requirements-model.txt
 ```
 
-`make install` does this after `requirements.txt`. Without `ANTHROPIC_API_KEY` the
+To host inference on Modal instead, the Render app can use the authenticated endpoint in
+`modal_scam_model.py`; it sends the agent-message text to Modal and receives the same
+flags and rules-based result. Modal mounts the `offsaid-model` Volume at
+`/model/offsaid_classifier_v4`. The screenshot transcription step still uses Anthropic,
+and does not use this classifier endpoint. In the Modal dashboard, create a Secret named
+`offsaid-scam-api` with a random `SCAM_MODEL_API_TOKEN` value, then deploy from the repository root.
+The current upload instructions place the checkpoint under `/model/offsaid_classifier_v4` inside
+the Volume, which the mounted function reads at `/model/model/offsaid_classifier_v4`. Redeploy
+after changing the Modal Secret so new containers receive its value:
+
+```powershell
+modal deploy modal_scam_model.py
+```
+
+Set `SCAM_MODEL_API_URL` in the app host to the deployed URL ending in `/classify`, and set
+the same token in `SCAM_MODEL_API_TOKEN` there. Keep the token in the host's secret settings,
+not in source control. The model endpoint is protected by bearer-token authentication and
+does not persist message text. Modal still processes the text for inference; use it only if
+that data handling is appropriate for your users. If Modal is unreachable, the app logs the
+failure and uses its local fee-wording rule only (`rules_only`).
+
+Without `ANTHROPIC_API_KEY` the
 screenshot route cannot read bubbles, so it returns no flags and says the chat could not
 be read, instead of inventing a transcript.
 
@@ -195,10 +216,12 @@ folder (the folder containing `requirements.txt`), then run:
 py -3 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install --upgrade pip
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe -m pip install torch --index-url https://download.pytorch.org/whl/cpu
 Copy-Item .env.example .env
 notepad .env
 ```
+
+If you want local classifier inference rather than the Modal endpoint, also run
+`.\.venv\Scripts\python.exe -m pip install -r requirements-model.txt`.
 
 In `.env`, set the database to a local SQLite file and replace the example salt with a
 long random value:
@@ -251,6 +274,9 @@ make seed                                      # loads the licensed-agent CSV
 | `FOUND_MIN_SCORE` | Name score (0-100) needed for `found`. Default 92. |
 | `POSSIBLE_MIN_SCORE` | Name score needed for `possible_match`. Default 80. |
 | `OFFSAID_MODEL_DIR` | Unpacked scam-language model. Default `models/offsaid_classifier_v4`. Not in git. |
+| `SCAM_MODEL_API_URL` | Optional HTTPS Modal endpoint URL ending in `/classify`. |
+| `SCAM_MODEL_API_TOKEN` | Bearer token shared with the Modal Secret; keep it private. |
+| `SCAM_MODEL_TIMEOUT_SECONDS` | Timeout for the Modal call. Default 120. |
 
 The tables are created on startup. If the agent table is empty, startup also loads the
 CSV, so `make seed` is only needed to add rows to an existing list.
@@ -284,10 +310,65 @@ journalctl -u offsaid -f            # logs
 The service listens on `127.0.0.1:8000`. Put a TLS reverse proxy (nginx or Caddy) in front
 of it for public access. Meta's WhatsApp webhooks will need HTTPS once that part is added.
 
-The scam-language weights are not in the git clone. Unpack them into
-`models/offsaid_classifier_v4` (or set `OFFSAID_MODEL_DIR`) before starting the service.
-The unit runs one worker on purpose: the model needs about 1 to 1.5 GB, and a second
-worker would load a second copy. A 2 GB host fits one copy and little else.
+For local model inference, install `requirements-model.txt` and unpack the weights into
+`models/offsaid_classifier_v4` (or set `OFFSAID_MODEL_DIR`). Alternatively set
+`SCAM_MODEL_API_URL` and `SCAM_MODEL_API_TOKEN` to use the Modal service; in that mode the
+weights and PyTorch are not installed on this app server. Leave both API settings empty to
+use local weights when available, or the fee rule alone when they are not.
+
+## Cross-case linking
+
+For every offer forwarded on WhatsApp we ask: have we seen this contact number, payment account,
+email, letter template or wording before? Full build notes: `docs/CROSS_CASE_LINKING_GUIDE.md`.
+
+- **Where it runs:** `app/whatsapp_webhook._send_offer` (Meta and Twilio), after the document and
+  wording checks and before the first report. `app/linking_step.py` maps the check results to a
+  `CaseInput` and calls `app/case_linking.process_case`. The report gets a section
+  "Comparison with earlier cases" with fact sentences only: no case ids, dates, raw numbers,
+  percentages or verdicts. A match is evidence that details were seen before, never proof about a person.
+- **Postgres only** (14+, `pg_trgm`). On SQLite, or if linking fails for any reason, the report says
+  "Comparison with earlier cases was not available for this check." and everything else is sent as usual.
+- **Nothing raw is stored:** numbers, accounts and emails are HMAC-SHA256 hashes keyed with
+  `OFFSAID_HASH_KEY`; letters are kept as a perceptual hash plus masked text; files are not kept.
+  The key is permanent: losing or changing it makes every stored hash unmatchable.
+- **Thresholds are untested starting points** (`PHASH_MAX_DISTANCE`, `TEXT_SIMILARITY_MIN`,
+  `WORDING_SIMILARITY_MIN`, `SAME_NAME_RATIO`, all in `app/case_linking.py` and nowhere else). They
+  separate the simulated seed letters cleanly but have not been tried on real letters.
+- **KEFWA queue:** escalated cases go to the `review_queue` table with the reasons and the ids of the
+  matching cases. Reviewer routes (HTTP Basic, `ADMIN_PASSWORD`; disabled when empty):
+  `GET /admin/review-queue`, `POST /admin/cases/{id}/status` (`unreviewed`, `reported`,
+  `confirmed_scam`, `verified_genuine`), `DELETE /admin/cases/{id}` (erasure request).
+- **Rate limit:** `LINKING_MAX_PER_HOUR` runs per WhatsApp user (in memory, one worker).
+
+Setup, once per database (`DATABASE_URL` and `OFFSAID_HASH_KEY` from `.env`):
+
+```bash
+python -m scripts.migrate                                   # migrations/*.sql: tables + pg_trgm
+python -m scripts.seed_linking data/linking_seed/seed_cases.json   # 10 simulated demo cases, safe to re-run
+```
+
+The simulated cases use the invalid prefix `+254 999` and are labelled as simulated in the report.
+`python scripts/make_seed_data.py data/linking_seed` regenerates them and their letter images.
+
+## Browser demo of the WhatsApp chat
+
+`http://127.0.0.1:8000/demo` is a WhatsApp-style chat page for demos without a WhatsApp number.
+On Windows, `.\scripts\demo.ps1 -Reset` starts the local Postgres and the app with clean demo data.
+
+The chat (`app/conversation.py`) is guided: a welcome menu, then each check runs on its own.
+`@agent-check` (name, licence number, phone, country; at least one of the first three),
+`@document-check` (with examples of documents to send), `@message-check` (a chat screenshot, or
+pasted messages), and `done` for a summary of everything checked. When a check raised concerns, the
+summary refers the case to KEFWA: players are told at the start, and again then, that KEFWA receives
+their phone number and the findings so they can contact them. Referrals and linking escalations show
+on the KEFWA review page `/admin/review` (login `ADMIN_USERNAME` / `ADMIN_PASSWORD`).
+Documents go through `whatsapp_webhook._send_offer`, the same checks as a WhatsApp document. The
+WhatsApp/Twilio webhooks still use the older one-step flow; switching them to `conversation.handle`
+is a small change. The paperclip menu has sample files. "Lakeview United offer"
+(`data/demo/lakeview_united_offer.pdf`, invented, from `scripts/make_demo_letter.py`) reuses a phone
+number and a till from the simulated linking seeds under a new club name, so on a seeded Postgres
+database the report shows flagged links and a KEFWA escalation. Chats live in memory and are lost
+on restart. Set `DEMO_CHAT_ENABLED=false` to turn the page off.
 
 ## Tests
 
@@ -295,14 +376,24 @@ worker would load a second copy. A 2 GB host fits one copy and little else.
 make test
 ```
 
-The tests use in-memory SQLite, so they need no database server.
+The tests use in-memory SQLite, so they need no database server. The cross-case linking database
+tests run only when `OFFSAID_TEST_DB` points at an **empty, disposable** Postgres 14+ database with
+`pg_trgm` (their fixtures drop and recreate the linking tables):
+
+```bash
+OFFSAID_TEST_DB=postgresql://user@localhost:5432/offsaid_test pytest tests/test_case_linking.py tests/test_linking_step.py
+```
 
 ## Layout
 
 ```
 app/main.py          FastAPI app: /health, /v1/agent-check, /v1/document-check, /v1/web-check, /v1/scam-language
-app/whatsapp_webhook.py  WhatsApp Cloud API webhook (document check, wording section, web check)
-app/report.py        WhatsApp reply templates, including the wording section
+app/whatsapp_webhook.py  WhatsApp Cloud API webhook (document check, wording section, linking, web check)
+app/report.py        WhatsApp reply templates, including the wording and linking sections
+app/case_linking.py  Cross-case linking: normalising, keyed hashing, masking, matching rules, thresholds
+app/linking_step.py  Linking in the pipeline: CaseInput mapping, failure policy, rate limit, KEFWA queue
+app/admin.py         KEFWA reviewer routes (review queue, case status, erasure)
+app/demo_chat.py     Browser demo of the WhatsApp chat (/demo, app/static/demo.html)
 app/scam_language.py Wording check: model plus negation and fee rules
 app/scam_runtime.py  Loads that model once, and runs it on an extracted chat
 app/chat_extraction.py  Vision call that transcribes a chat screenshot with senders
@@ -317,11 +408,13 @@ app/seed.py          CSV loader
 models/              Unpacked classifier (git-ignored) and models/README.md
 ml/scam_language/    Generator, synthetic CSVs, training notebook
 deploy/              systemd unit
-scripts/             DB setup, agent loader, test-letter generator, wording smoke check
+scripts/             DB setup, agent loader, test-letter generator, wording smoke check,
+                     migrations runner, linking seed generator and loader
+migrations/          Plain-SQL Postgres migrations (cross-case linking tables, KEFWA review queue)
 data/test_letters/   Step 2 test letters and manifest
-docs/                Classifier handoff and integration notes
+data/linking_seed/   Simulated cross-case linking cases and letter images (all invented)
+docs/                Classifier handoff, integration notes, cross-case linking guide
 ```
 
-`app/llm.py` and `app/whatsapp.py` are used by Steps 2 and 3. `app/pipeline_models.py` is
-groundwork for the later stages (case history, cross-case linking, KEFWA review queue);
-nothing imports it yet.
+`app/llm.py` and `app/whatsapp.py` are used by Steps 2 and 3. `app/pipeline_models.py` holds
+parked tables (registration windows); nothing imports it yet.

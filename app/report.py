@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import List
+from typing import List, Optional
 
 from app.document_schemas import Check, DocumentCheckResponse
 from app.web_agent import WebCheckResult
@@ -33,6 +33,18 @@ WORDING_RULES_ONLY = (
 )
 WORDING_PATTERNS = (
     "These lines are wording patterns. They are not a conclusion about the person who wrote them."
+)
+
+LINKING_HEADING = "*Comparison with earlier cases*"
+LINKING_UNAVAILABLE = "Comparison with earlier cases was not available for this check."
+LINKING_RATE_LIMITED = (
+    "Comparison with earlier cases did not run, because many checks were sent from this number "
+    "in a short time. Please try again later."
+)
+LINKING_SIMULATED = "Some of these earlier cases are simulated demo cases, not real reports."
+LINKING_ESCALATED = "This case has been added to KEFWA's review list."
+LINKING_NOT_PROOF = (
+    "A match means these details were seen before. It is not proof about the person who sent this offer."
 )
 
 LABELS = {
@@ -117,6 +129,33 @@ def wording_report(result: dict) -> str:
         lines.append(f'- "{shown}"\n  {flag.get("meaning", "")}')
     parts.append("\n".join(lines))
     parts.append(WORDING_PATTERNS)
+    return "\n\n".join(parts)
+
+
+def linking_report(view: Optional[dict]) -> str:
+    """The cross-case linking section, from case_linking.player_view (plus 'simulated').
+
+    Only the summary sentences: no case ids, dates, other players' details, raw identifiers
+    or percentages. None means linking was not available; the rest of the report still goes out.
+    """
+    parts = [LINKING_HEADING]
+    if view is None:
+        parts.append(LINKING_UNAVAILABLE)
+        return "\n\n".join(parts)
+    if view.get("rate_limited"):
+        parts.append(LINKING_RATE_LIMITED)
+        return "\n\n".join(parts)
+    links = view.get("links") or []
+    if not links:
+        parts.append(view.get("no_match_note") or LINKING_UNAVAILABLE)
+        return "\n\n".join(parts)
+    ordered = [l for l in links if l["flag"]] + [l for l in links if not l["flag"]]
+    parts.append("\n".join(f"- {l['summary']}" for l in ordered))
+    if view.get("simulated"):
+        parts.append(LINKING_SIMULATED)
+    if view.get("escalated"):
+        parts.append(LINKING_ESCALATED)
+    parts.append(LINKING_NOT_PROOF)
     return "\n\n".join(parts)
 
 

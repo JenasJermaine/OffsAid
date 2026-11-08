@@ -1,0 +1,51 @@
+# Render Blueprint: the OffsAid web app (API, /demo chat, Twilio webhook, KEFWA review) plus Postgres.
+# Render dashboard -> New -> Blueprint -> pick this repo. Values marked sync: false are asked for once.
+services:
+  - type: web
+    name: offsaid
+    runtime: docker
+    # Not "free": a free service sleeps after 15 idle minutes, and Twilio gives up on a webhook
+    # after 15 seconds, so the first WhatsApp message after a quiet spell would be lost.
+    plan: starter
+    region: frankfurt # closest Render region to Kenya
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: offsaid-db
+          property: connectionString
+      # Generated once by Render. OFFSAID_HASH_KEY is permanent: changing it makes every stored
+      # linking hash unmatchable.
+      - key: LOOKUP_HASH_SALT
+        generateValue: true
+      - key: OFFSAID_HASH_KEY
+        generateValue: true
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: SCAM_MODEL_API_URL
+        sync: false
+      - key: SCAM_MODEL_API_TOKEN
+        sync: false
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_WHATSAPP_FROM
+        sync: false
+      - key: ADMIN_USERNAME
+        value: kefwa
+      - key: ADMIN_PASSWORD
+        sync: false
+      # The browser demo stays on as the fallback if the WhatsApp number is blocked.
+      - key: DEMO_CHAT_ENABLED
+        value: "true"
+      # Loads the 10 simulated linking cases (safe to re-run) so the Lakeview demo letter shows matches.
+      - key: SEED_LINKING_DEMO
+        value: "true"
+
+databases:
+  - name: offsaid-db
+    plan: basic-256mb
+    region: frankfurt
+    postgresMajorVersion: "16"

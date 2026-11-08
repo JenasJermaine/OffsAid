@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>KEFWA Review Queue</title>
+<style>
+  :root {
+    --bg: #f4f6f8; --card: #ffffff; --ink: #14212b; --muted: #5b6b78; --line: #dde3e8;
+    --accent: #0b6e4f; --warn: #b54708; --warn-bg: #fff4e5; --info-bg: #e8f3fc; --info: #1f5f99;
+    --danger: #b42318;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f1418; --card: #182027; --ink: #e6edf2; --muted: #93a3b0; --line: #2a353e;
+      --accent: #3cc48f; --warn: #f5a75b; --warn-bg: #33240f; --info-bg: #13283a; --info: #7db8ea; --danger: #f97066;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 -apple-system, "Segoe UI", Roboto, Arial, sans-serif; }
+  header { background: var(--card); border-bottom: 1px solid var(--line); padding: 14px 16px; }
+  header .in { max-width: 920px; margin: 0 auto; display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  h1 { font-size: 19px; margin: 0; }
+  header p { margin: 0; color: var(--muted); font-size: 13.5px; flex: 1; min-width: 220px; }
+  main { max-width: 920px; margin: 0 auto; padding: 16px; }
+  .empty { text-align: center; color: var(--muted); padding: 48px 16px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 14px; }
+  .top { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+  .badge { font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 999px; }
+  .b-chat { background: var(--info-bg); color: var(--info); }
+  .b-link { background: var(--warn-bg); color: var(--warn); }
+  .b-sim { background: var(--line); color: var(--muted); }
+  .when { color: var(--muted); font-size: 13px; margin-left: auto; }
+  .grid { display: grid; grid-template-columns: 150px 1fr; gap: 6px 14px; font-size: 14px; }
+  .grid dt { color: var(--muted); }
+  .grid dd { margin: 0; overflow-wrap: anywhere; }
+  .contact { font-weight: 700; font-size: 16px; }
+  .contact a { color: var(--accent); text-decoration: none; }
+  ul.reasons { margin: 0; padding-left: 18px; }
+  details { margin-top: 12px; }
+  summary { cursor: pointer; color: var(--accent); font-weight: 600; font-size: 14px; }
+  .findings { white-space: pre-wrap; background: var(--bg); border-radius: 8px; padding: 12px; margin-top: 8px; font-size: 14px; }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+  .actions input { flex: 1 1 200px; min-width: 0; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--ink); font: inherit; font-size: 14px; }
+  button { border: 1px solid var(--line); background: var(--card); color: var(--ink); border-radius: 8px; padding: 7px 12px; font: inherit; font-size: 13.5px; cursor: pointer; }
+  button:hover { border-color: var(--muted); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.danger { color: var(--danger); }
+  .note { color: var(--muted); font-size: 12.5px; margin-top: 8px; }
+  @media (max-width: 560px) { .grid { grid-template-columns: 1fr; gap: 2px; } .grid dt { margin-top: 6px; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="in">
+    <h1>KEFWA review queue</h1>
+    <p>Cases OffsAid sent for a person to review. Findings are evidence, not a verdict. Refreshes every 10 seconds.</p>
+    <button type="button" id="refresh">Refresh</button>
+  </div>
+</header>
+<main id="list"><div class="empty">Loading…</div></main>
+
+<script>
+(() => {
+  const list = document.getElementById("list");
+  const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const bold = s => esc(s).replace(/\*([^*\n]+)\*/g, "<b>$1</b>").replace(/(^|\s)_([^_\n]+)_(?=\s|$)/g, "$1<i>$2</i>");
+  const when = iso => new Date(iso).toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
+
+  async function api(method, url, body) {
+    // location.origin never carries credentials, so this also works when the page was opened as user:pass@host.
+    const r = await fetch(location.origin + url, { method, headers: body ? { "Content-Type": "application/json" } : {}, body: body ? JSON.stringify(body) : undefined });
+    if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || r.status);
+    return r.json();
+  }
+
+  function card(item) {
+    const chat = item.origin === "chat_summary";
+    const reasons = (item.reasons || []).map(r => "<li>" + esc(r) + "</li>").join("");
+    const contact = item.player_contact
+      ? '<span class="contact"><a href="tel:' + esc(item.player_contact) + '">' + esc(item.player_contact) + "</a></span>"
+      : '<span style="color:var(--muted)">' + (chat ? "The player chose not to share a number" : "Not yet shared (no chat summary)") + "</span>";
+    const rows = [
+      ["Player's phone", contact],
+      ["Why it is here", "<ul class=\"reasons\">" + reasons + "</ul>"],
+    ];
+    if (item.case_id) {
+      rows.push(["Claimed club / agent", esc(item.claimed_club || "not given") + " / " + esc(item.claimed_agent || "not given")]);
+      rows.push(["Case", "#" + item.case_id + " · status " + esc(item.case_status) +
+                 (item.linked_case_ids && item.linked_case_ids.length ? " · matches earlier cases " + item.linked_case_ids.map(i => "#" + i).join(", ") : "")]);
+    }
+    const statusButtons = item.case_id ? `
+        <button type="button" data-act="status" data-status="confirmed_scam">Mark confirmed scam</button>
+        <button type="button" data-act="status" data-status="verified_genuine">Mark verified genuine</button>
+        <button type="button" data-act="status" data-status="reported">Mark reported</button>` : "";
+    return `
+      <article class="card" data-id="${item.id}" data-case="${item.case_id || ""}">
+        <div class="top">
+          <span class="badge ${chat ? "b-chat" : "b-link"}">${chat ? "Referred from chat summary" : "Escalated by cross-case linking"}</span>
+          ${item.source === "simulated" ? '<span class="badge b-sim">simulated case</span>' : ""}
+          <span class="when">${esc(when(item.created_at))}</span>
+        </div>
+        <dl class="grid">${rows.map(([k, v]) => "<dt>" + k + "</dt><dd>" + v + "</dd>").join("")}</dl>
+        ${item.findings_text ? '<details open><summary>Findings the player was sent</summary><div class="findings">' + bold(item.findings_text) + "</div></details>" : ""}
+        <div class="actions">
+          <input type="text" placeholder="Reviewer note (optional)" aria-label="Reviewer note">
+          ${statusButtons}
+          <button type="button" class="primary" data-act="resolve">Resolve</button>
+          <button type="button" class="danger" data-act="erase">Erase</button>
+        </div>
+        ${item.case_id ? '<p class="note">Marking a case "confirmed scam" makes later offers that share its phone number, account or email escalate automatically.</p>' : ""}
+      </article>`;
+  }
+
+  async function load() {
+    try {
+      const items = await api("GET", "/admin/review-queue");
+      list.innerHTML = items.length ? items.map(card).join("") : '<div class="empty">No open cases. Referrals from the chat appear here.</div>';
+    } catch (e) {
+      list.innerHTML = '<div class="empty">Could not load the queue: ' + esc(e.message) + "</div>";
+    }
+  }
+
+  list.addEventListener("click", async e => {
+    const b = e.target.closest("button[data-act]");
+    if (!b) return;
+    const c = b.closest(".card");
+    const note = c.querySelector("input").value;
+    try {
+      if (b.dataset.act === "status") await api("POST", `/admin/cases/${c.dataset.case}/status`, { status: b.dataset.status, note });
+      if (b.dataset.act === "resolve") await api("POST", `/admin/review-queue/${c.dataset.id}/resolve`, { note });
+      if (b.dataset.act === "erase") {
+        if (!confirm("Erase this item? The player's phone number and findings are deleted" + (c.dataset.case ? ", and the stored case with its hashes." : "."))) return;
+        if (c.dataset.case) await api("DELETE", `/admin/cases/${c.dataset.case}`);
+        else await api("DELETE", `/admin/review-queue/${c.dataset.id}`);
+      }
+      load();
+    } catch (err) {
+      alert("That did not work: " + err.message);
+    }
+  });
+
+  document.getElementById("refresh").addEventListener("click", load);
+  load();
+  setInterval(() => { if (!document.querySelector(".actions input:focus")) load(); }, 10000);
+})();
+</script>
+</body>
+</html>

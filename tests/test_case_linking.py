@@ -4,19 +4,21 @@ Pure tests (no database) always run. Database tests need a Postgres 14+ with pg_
 OFFSAID_TEST_DB holds a DSN for an EMPTY, disposable database, for example:
     export OFFSAID_TEST_DB="postgresql://user@localhost:5432/offsaid_test"
     export OFFSAID_HASH_KEY=$(python -c "import secrets; print(secrets.token_hex(32))")
-    pytest test_case_linking.py -v
+    pytest tests/test_case_linking.py -v
 The DB fixture DROPS and recreates the three linking tables. Never point it at a real database.
+
+Repo placement: only the imports and the schema path differ from the staged file; the tests are unchanged.
 """
 import os
 from pathlib import Path
 
 import pytest
 
-import case_linking as cl
-import make_seed_data as seeds
+from app import case_linking as cl
+from scripts import make_seed_data as seeds
 
 KEY = b"k" * 32
-HERE = Path(__file__).parent
+SCHEMA = Path(__file__).resolve().parent.parent / "migrations" / "001_case_linking.sql"
 
 
 # ------------------------------------------------------------------ pure tests
@@ -104,10 +106,10 @@ needs_db = pytest.mark.skipif(not DSN, reason="set OFFSAID_TEST_DB to run the da
 def conn(tmp_path, monkeypatch):
     import psycopg
     monkeypatch.setenv("OFFSAID_HASH_KEY", KEY.decode())
-    from seed_linking import load_seed_file
+    from scripts.seed_linking import load_seed_file
     with psycopg.connect(DSN, autocommit=True) as c:
         c.execute("drop table if exists documents, identifiers, cases cascade")
-        c.execute((HERE / "schema.sql").read_text())
+        c.execute(SCHEMA.read_text())
         seeds.main(str(tmp_path / "seed"))
         assert load_seed_file(c, str(tmp_path / "seed" / "seed_cases.json")) == 10
         c.tmp = tmp_path

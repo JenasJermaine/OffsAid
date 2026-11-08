@@ -15,20 +15,14 @@ from app.db import Base, engine, get_db
 from app.document_checks import check_document
 from app.document_extraction import MAX_UPLOAD_BYTES, UnsafeDocument, UnsupportedDocument
 from app.document_schemas import DocumentCheckResponse, DocumentFields
-from app.hashing import hash_lookup_value
-from app.matching import AgentQuery, verify_agent
-from app.models import LicensedAgent, LookupLog
-from app.normalize import normalize_licence, normalize_name, normalize_phone
-from app.schemas import (
-    DISCLAIMER,
-    AgentCheckRequest,
-    AgentCheckResponse,
-    MatchedAgent,
-)
+from app.agent_check import _log_lookup, run_agent_check  # noqa: F401  _log_lookup: still importable from here
+from app.schemas import AgentCheckRequest, AgentCheckResponse
 from app.report import wording_report
 from app.scam_runtime import check_screenshot, get_scam_checker
 from app.seed import seed_if_empty
 from app.web_check_jobs import create_job, get_job, run_job
+from app.admin import router as admin_router
+from app.demo_chat import router as demo_router
 from app.twilio_webhook import router as twilio_router
 from app.whatsapp_webhook import router as whatsapp_router
 
@@ -63,44 +57,13 @@ app = FastAPI(
 )
 app.include_router(whatsapp_router)
 app.include_router(twilio_router)
+app.include_router(admin_router)
+app.include_router(demo_router)
 
 
 @app.get("/", include_in_schema=False)
 def home() -> FileResponse:
     return FileResponse(Path(__file__).parent / "static" / "index.html")
-
-
-def _matched_payload(outcome) -> Optional[MatchedAgent]:
-    if outcome.agent is None:
-        return None
-    agent = outcome.agent
-    return MatchedAgent(
-        name=agent.name,
-        country=agent.country,
-        licence_number=agent.licence_number,
-        licence_status=agent.licence_status,
-        source=agent.source,
-        score=outcome.score,
-    )
-
-
-def _log_lookup(db: Session, request: AgentCheckRequest, outcome) -> None:
-    if request.phone and request.phone.strip():
-        kind, value = "phone", normalize_phone(request.phone)
-    elif request.licence_number and request.licence_number.strip():
-        kind, value = "licence", normalize_licence(request.licence_number)
-    else:
-        kind, value = "name", normalize_name(request.name)
-    db.add(
-        LookupLog(
-            query_hash=hash_lookup_value(value),
-            query_kind=kind,
-            result_status=outcome.status,
-            score=outcome.score,
-            agent_id=outcome.agent.id if outcome.agent is not None else None,
-        )
-    )
-    db.commit()
 
 
 @app.get("/health")
@@ -112,21 +75,7 @@ def health() -> dict[str, str]:
 def agent_check(
     payload: AgentCheckRequest, db: Session = Depends(get_db)
 ) -> AgentCheckResponse:
-    agents = db.query(LicensedAgent).all()
-    query = AgentQuery(
-        name=payload.name,
-        phone=payload.phone,
-        licence_number=payload.licence_number,
-        claimed_country=payload.claimed_country,
-    )
-    outcome = verify_agent(query, agents)
-    _log_lookup(db, payload, outcome)
-    return AgentCheckResponse(
-        status=outcome.status,
-        message=outcome.reason,
-        match=_matched_payload(outcome),
-        disclaimer=DISCLAIMER,
-    )
+    return run_agent_check(db, payload)
 
 
 @app.post("/v1/document-check", response_model=DocumentCheckResponse)

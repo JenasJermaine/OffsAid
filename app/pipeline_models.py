@@ -1,111 +1,19 @@
-"""Tables for the later stages (cases, cross-case linking, KEFWA review queue).
+"""Tables for the later stages that are not live yet.
 
 Parked: nothing imports this module yet. InboundMessage and WebCheckLog moved to
 app/models.py when the WhatsApp webhook and the web-checking agent (Step 3) went live.
-Import it from app.db.init_db() when the WhatsApp pipeline is switched on; on Postgres
-that also needs the pgvector extension (CREATE EXTENSION vector).
+
+The case history, cross-case linking and KEFWA review queue tables (cases, identifiers,
+documents, review_queue) are NOT SQLAlchemy models: they are plain-SQL Postgres migrations
+in migrations/ (see docs/CROSS_CASE_LINKING_GUIDE.md), used by app/case_linking.py.
 """
 
-from datetime import date, datetime
+from datetime import date
 
-from sqlalchemy import (
-    JSON,
-    Boolean,
-    Date,
-    DateTime,
-    ForeignKey,
-    Index,
-    Integer,
-    String,
-    Text,
-    func,
-)
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy.types import TypeDecorator
+from sqlalchemy import Date, Integer, String
+from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
-
-TEXT_VECTOR_DIM = 512
-
-
-class TextVector(TypeDecorator):
-    """pgvector column on Postgres, JSON list elsewhere (SQLite in tests)."""
-
-    impl = JSON
-    cache_ok = True
-
-    def load_dialect_impl(self, dialect):
-        if dialect.name == "postgresql":
-            from pgvector.sqlalchemy import Vector
-
-            return dialect.type_descriptor(Vector(TEXT_VECTOR_DIM))
-        return dialect.type_descriptor(JSON())
-
-    def process_bind_param(self, value, dialect):
-        return None if value is None else [float(v) for v in value]
-
-    def process_result_value(self, value, dialect):
-        return None if value is None else [float(v) for v in value]
-
-
-class Case(Base):
-    __tablename__ = "cases"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
-    is_simulated: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    player_hash: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
-    source_message_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    message_kind: Mapped[str] = mapped_column(String(16), nullable=False)
-    offer_text: Mapped[str] = mapped_column(Text, nullable=False, default="")
-    extracted: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
-    findings: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
-    report_text: Mapped[str] = mapped_column(Text, nullable=False, default="")
-    text_hash: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
-    text_vector: Mapped[list[float] | None] = mapped_column(TextVector(), nullable=True)
-    image_phash: Mapped[str | None] = mapped_column(String(16), nullable=True)
-
-    signals: Mapped[list["CaseSignal"]] = relationship(
-        back_populates="case", cascade="all, delete-orphan"
-    )
-
-
-class CaseSignal(Base):
-    """Hashed values (phone, email, payment account...) used for exact cross-case matches."""
-
-    __tablename__ = "case_signals"
-    __table_args__ = (Index("ix_case_signals_kind_hash", "kind", "value_hash"),)
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), nullable=False, index=True)
-    kind: Mapped[str] = mapped_column(String(32), nullable=False)
-    value_hash: Mapped[str] = mapped_column(String(64), nullable=False)
-
-    case: Mapped[Case] = relationship(back_populates="signals")
-
-
-class ReviewItem(Base):
-    """KEFWA review queue: unclear and high-risk cases for a person to look at."""
-
-    __tablename__ = "review_queue"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
-    case_id: Mapped[int | None] = mapped_column(ForeignKey("cases.id"), nullable=True)
-    priority: Mapped[str] = mapped_column(String(16), nullable=False, default="normal")
-    reasons: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
-    # Raw number kept only here, so KEFWA staff can follow up with the player.
-    player_wa_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
-    status: Mapped[str] = mapped_column(String(16), nullable=False, default="open")
-    reviewer_note: Mapped[str] = mapped_column(Text, nullable=False, default="")
-    label: Mapped[str] = mapped_column(String(64), nullable=False, default="")
-    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-
-    case: Mapped[Case | None] = relationship()
 
 
 class RegistrationWindow(Base):

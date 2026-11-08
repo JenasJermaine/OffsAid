@@ -2,7 +2,7 @@ PYTHON ?= python3
 VENV := .venv
 BIN := $(VENV)/bin
 
-.PHONY: install db seed test run dev
+.PHONY: install install-model db seed migrate seed-linking test run dev
 
 $(BIN)/python:
 	$(PYTHON) -m venv $(VENV)
@@ -10,8 +10,9 @@ $(BIN)/python:
 install: $(BIN)/python
 	$(BIN)/pip install --upgrade pip
 	$(BIN)/pip install -r requirements.txt
-	# CPU wheel. A plain `pip install torch` may pull a CUDA build the server does not need.
-	$(BIN)/pip install torch --index-url https://download.pytorch.org/whl/cpu
+
+install-model: install
+	$(BIN)/pip install -r requirements-model.txt
 
 # Needs sudo and OFFSAID_DB_PASSWORD set; see README.
 db:
@@ -19,6 +20,13 @@ db:
 
 seed:
 	$(BIN)/python scripts/load_agents.py
+
+# Cross-case linking tables (Postgres only), then the simulated demo cases.
+migrate:
+	$(BIN)/python -m scripts.migrate
+
+seed-linking:
+	$(BIN)/python -m scripts.seed_linking data/linking_seed/seed_cases.json
 
 test:
 	$(BIN)/pytest -q

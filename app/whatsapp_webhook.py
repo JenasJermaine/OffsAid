@@ -6,6 +6,7 @@ POST /webhook  Incoming messages. Signed by Meta (X-Hub-Signature-256), answered
                  1. "checking, this can take a minute" reply
                  2. document check (Step 2) -> first report
                     images also get the wording section (other party's messages only)
+                    then cross-case linking adds "Comparison with earlier cases" (app/linking_step.py)
                  3. web-checking agent (Step 3) -> second report, when the document names a club
 Text messages get a short explanation of what to send. Each message id is processed once,
 because Meta retries webhooks.
@@ -15,6 +16,7 @@ from __future__ import annotations
 
 import json
 import logging
+from typing import Optional
 
 import httpx
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
@@ -27,6 +29,7 @@ from app.db import SessionLocal
 from app.document_checks import check_document, window_missing
 from app.document_extraction import SUPPORTED_TYPES, UnsafeDocument, UnsupportedDocument
 from app.hashing import hash_lookup_value
+from app.linking_step import run_linking
 from app.scam_runtime import check_screenshot
 from app.models import InboundMessage
 from app.web_agent import claims_to_check
@@ -96,45 +99,50 @@ def _send(to: str, body: str) -> None:
         log.exception("Could not send a WhatsApp reply")
 
 
-def _wording_reply(data: bytes, mime_type: str) -> str:
-    """Wording section for one image. A failure here still leaves the document report."""
+def _wording_check(data: bytes, mime_type: str) -> dict:
+    """Wording check for one image. A failure here still leaves the document report."""
     try:
-        outcome = check_screenshot(data, mime_type)
+        return check_screenshot(data, mime_type)
     except Exception:
         log.exception("Wording check failed")
-        outcome = {
+        return {
             "flags": [],
             "messages_checked": 0,
             "mode": "rules_only",
             "unavailable": True,
             "note": None,
         }
-    return report.wording_report(outcome)
 
 
-def _send_offer(sender: str, data: bytes, mime: str, send) -> None:
-    """Document check, wording section for an image, then the web check. `send(to, text)`."""
+def _send_offer(sender: str, data: bytes, mime: str, send, message_id: str = "", wording_for_images: bool = True) -> Optional[dict]:
+    """Document check, wording check for an image, cross-case linking, first report, then
+    the web check. `send(to, text)`. message_id makes linking idempotent on webhook retries.
+    Returns the results (for the chat summary), or None when the document could not be checked."""
     try:
         result = check_document(data, mime)
     except UnsupportedDocument:
         send(sender, report.UNSUPPORTED)
-        return
+        return None
     except UnsafeDocument:
         send(sender, report.TOO_LARGE)
-        return
+        return None
     except Exception:
         log.exception("Document check failed")
         send(sender, report.FAILED)
-        return
+        return None
 
     missing_window = window_missing(result.checks)
     run_agent = settings.llm_enabled and bool(claims_to_check(result.fields, missing_window))
+    wording = _wording_check(data, mime) if wording_for_images and mime.startswith("image/") else None
+    linked = run_linking(result, wording, data, mime, message_id, sender.removeprefix("whatsapp:"))
     reply = report.document_report(result, web_check_running=run_agent)
-    if mime.startswith("image/"):
-        reply = reply + "\n\n" + _wording_reply(data, mime)
+    if wording is not None:
+        reply = reply + "\n\n" + report.wording_report(wording)
+    reply = reply + "\n\n" + report.linking_report(linked)
     send(sender, reply)
+    outcome = {"document": result, "wording": wording, "linking": linked, "web": None}
     if not run_agent:
-        return
+        return outcome
     number = sender.removeprefix("whatsapp:")
     db = SessionLocal()
     try:
@@ -143,6 +151,8 @@ def _send_offer(sender: str, data: bytes, mime: str, send) -> None:
         db.close()
     web = run_job(job_id, result.fields, missing_window)
     send(sender, report.web_report(web))
+    outcome["web"] = web
+    return outcome
 
 
 def handle_message(message: dict) -> None:
@@ -166,4 +176,4 @@ def handle_message(message: dict) -> None:
         log.exception("Could not download WhatsApp media")
         _send(sender, report.FAILED)
         return
-    _send_offer(sender, downloaded.data, downloaded.mime_type or mime, _send)
+    _send_offer(sender, downloaded.data, downloaded.mime_type or mime, _send, message.get("id", ""))

@@ -1,0 +1,16 @@
+.env
+.venv/
+venv/
+.git/
+.vscode/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.db
+models/*
+!models/README.md
+ml/
+Staging folder/
+*.pdf.zip
+desktop.ini
+OffsAid how we build it.pdf
