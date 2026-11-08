@@ -6,7 +6,7 @@ GET  /v1/demo/chats/{chat_id}/messages   OffsAid's replies after index `after`, 
 GET  /v1/demo/samples[/{name}]           sample offers the presenter can "forward"
 
 Messages go to the OffsAid chat (app/conversation.py): a menu, @agent-check, @document-check and
-@message-check, a summary on "done", and KEFWA referral. Documents go through whatsapp_webhook._send_offer,
+@message-check, a summary on "@done", and KEFWA referral. Documents go through whatsapp_webhook._send_offer,
 the same checks a WhatsApp document goes through. Replies are kept in memory for the page instead of sent.
 DEMO_CHAT_ENABLED=false turns all of this off (404).
 """

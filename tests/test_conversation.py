@@ -40,7 +40,8 @@ class Chat:
 @pytest.mark.parametrize("text,command", [
     ("@agent-check", "agent"), ("@Agent Check", "agent"), ("agent check", "agent"), ("1", "agent"),
     ("@document-check", "document"), ("@doc", "document"), ("@message-check", "message"), ("3", "message"),
-    ("done", "done"), ("That's all", "done"), ("menu", "menu"), ("Hi", "menu"), ("hello there", None),
+    ("@done", "done"), ("@ done", "done"), ("done", None), ("That's all", None), ("no", None), ("end", None),
+    ("menu", "menu"), ("Hi", "menu"), ("hello there", None),
 ])
 def test_commands(text, command):
     assert parse_command(text)[0] == command
@@ -51,7 +52,8 @@ def test_command_with_details_and_strict_mode():
     assert parse_command("@message-check\nSend the fee") == ("message", "Send the fee")
     assert parse_command("Hello", strict=True) == (None, "Hello")          # a pasted chat is not the menu
     assert parse_command("@hello", strict=True)[0] == "menu"
-    assert parse_command("done", strict=True)[0] == "done"
+    assert parse_command("@done", strict=True)[0] == "done"
+    assert parse_command("done", strict=True)[0] is None
 
 
 def test_agent_details():
@@ -112,13 +114,13 @@ def test_message_check_with_pasted_text_starting_with_hello():
 
 
 def test_done_without_checks():
-    assert Chat().say("done") == [conv_mod.NOTHING_YET]
+    assert Chat().say("@done") == [conv_mod.NOTHING_YET]
 
 
 def test_summary_without_concerns_is_not_referred_and_not_a_verdict():
     chat = Chat()
     chat.say("@agent-check Name: James Otieno")
-    summary, no_concerns, again = chat.say("done")
+    summary, no_concerns, again = chat.say("@done")
     assert "*Your OffsAid summary*" in summary and "*Agent check* (James Otieno): on the licensed agents list." in summary
     assert no_concerns == conv_mod.NO_CONCERNS and again == conv_mod.START_AGAIN
     assert "scammer" not in summary.lower() and chat.conv.findings == []
@@ -130,7 +132,7 @@ def test_summary_with_concerns_asks_for_a_number_then_refers(monkeypatch):
     chat = Chat()
     chat.say("@agent-check Name: Nobody Atall")
     chat.say("@document-check", (LAKEVIEW, "application/pdf"))
-    summary, ask = chat.say("done")
+    summary, ask = chat.say("@done")
     assert "*Agent check*" in summary and "*Document check*" in summary and conv_mod.GUIDANCE in summary
     assert "KEFWA will receive your phone number" in ask
     assert chat.say("not a number") == [conv_mod.BAD_CONTACT]
@@ -144,7 +146,7 @@ def test_summary_with_concerns_asks_for_a_number_then_refers(monkeypatch):
 def test_known_whatsapp_number_is_used_without_asking_and_sqlite_fails_softly():
     chat = Chat(contact="+254712345678")
     chat.say("@agent-check Name: Nobody Atall")
-    summary, failed, again = chat.say("done")
+    summary, failed, again = chat.say("@done")
     assert failed == conv_mod.REFERRAL_FAILED                 # SQLite: the queue lives in Postgres
 
 
@@ -153,7 +155,7 @@ def test_skip_sends_without_a_number(monkeypatch):
     monkeypatch.setattr(conv_mod, "_refer", lambda conv, referral, contact, send: referred.append(contact))
     chat = Chat()
     chat.say("@agent-check Name: Nobody Atall")
-    chat.say("done")
+    chat.say("@done")
     chat.say("skip")
     assert referred == [None]
 
@@ -188,7 +190,7 @@ def test_referral_lands_in_the_kefwa_queue_with_the_number(pg, client, monkeypat
     chat = Chat()
     chat.say("@document-check", (LAKEVIEW, "application/pdf"))         # till 9990002 = sim-02: escalated
     assert len(pg.execute("select id from review_queue").fetchall()) == 1
-    chat.say("done")
+    chat.say("@done")
     referred = chat.say("0712 345 678")
     assert referred[0].startswith("*Sent to KEFWA for review*") and "+254712345678" in referred[0]
 
@@ -200,7 +202,7 @@ def test_referral_lands_in_the_kefwa_queue_with_the_number(pg, client, monkeypat
 
     other = Chat(contact="+254711000000")                              # agent check only: no stored case
     other.say("@agent-check Name: Nobody Atall")
-    other.say("done")
+    other.say("@done")
     items = client.get("/admin/review-queue", auth=("kefwa", "secret")).json()
     assert {i["player_contact"] for i in items} == {"+254712345678", "+254711000000"}
     loose = next(i for i in items if i["case_id"] is None)
@@ -208,3 +210,20 @@ def test_referral_lands_in_the_kefwa_queue_with_the_number(pg, client, monkeypat
     assert len(client.get("/admin/review-queue", auth=("kefwa", "secret")).json()) == 1
     assert client.delete(f"/admin/review-queue/{loose['id']}", auth=("kefwa", "secret")).json()["deleted"]
     assert "KEFWA review queue" in client.get("/admin/review", auth=("kefwa", "secret")).text
+
+
+def test_only_at_done_gives_the_summary():
+    chat = Chat()
+    chat.say("@message-check")
+    chat.say("Pay the clearance fee today")
+    for word in ("no", "done", "end", "that's all"):
+        assert not any(m.startswith("*Your OffsAid summary*") for m in chat.say(word))
+    assert chat.say("@done")[0].startswith("*Your OffsAid summary*")
+
+
+def test_agent_check_with_a_file_asks_for_text():
+    chat = Chat()
+    assert chat.say("@agent-check", file=(LAKEVIEW, "application/pdf")) == [conv_mod.AGENT_NO_FILE, conv_mod.AGENT_TEMPLATE]
+    assert chat.conv.findings == []          # the file was not checked
+    reply = chat.say("Name: James Otieno")   # the chat now waits for the agent's details
+    assert reply[0].startswith("*Agent check result*")

@@ -179,7 +179,7 @@ front) and subscribe to `messages`. Set `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER
 are rejected.
 
 Both webhooks (Meta and Twilio) run the same guided chat as the browser demo (`app/conversation.py`,
-see "Browser demo" below): a menu, `@agent-check`, `@document-check`, `@message-check` and `done`. One
+see "Browser demo" below): a menu, `@agent-check`, `@document-check`, `@message-check` and `@done`. One
 chat per WhatsApp number is kept in memory (`app/chat_sessions.py`), so a restart sends the player back
 to the menu. The WhatsApp number is the contact KEFWA receives when a case is referred. When a player
 forwards a PDF or an image, the bot:
@@ -362,12 +362,14 @@ On Windows, `.\scripts\demo.ps1 -Reset` starts the local Postgres and the app wi
 The chat (`app/conversation.py`) is guided: a welcome menu, then each check runs on its own.
 `@agent-check` (name, licence number, phone, country; at least one of the first three),
 `@document-check` (with examples of documents to send), `@message-check` (a chat screenshot, or
-pasted messages), and `done` for a summary of everything checked. When a check raised concerns, the
+pasted messages), and `@done` for a summary of everything checked (only `@done`: a plain "done" or "no"
+is not a command). When a check raised concerns, the
 summary refers the case to KEFWA: players are told at the start, and again then, that KEFWA receives
 their phone number and the findings so they can contact them. Referrals and linking escalations show
 on the KEFWA review page `/admin/review` (login `ADMIN_USERNAME` / `ADMIN_PASSWORD`).
 Documents go through `whatsapp_webhook._send_offer`, the same checks as a WhatsApp document. The
-WhatsApp and Twilio webhooks run this same chat. The paperclip menu has sample files. "Lakeview United offer"
+WhatsApp and Twilio webhooks run this same chat. The paperclip menu uploads a file from the computer or picks a sample; either opens a preview where a
+caption such as `@document-check` or `@message-check` can be added before sending, as on WhatsApp. "Lakeview United offer"
 (`data/demo/lakeview_united_offer.pdf`, invented, from `scripts/make_demo_letter.py`) reuses a phone
 number and a till from the simulated linking seeds under a new club name, so on a seeded Postgres
 database the report shows flagged links and a KEFWA escalation. Chats live in memory and are lost

@@ -110,11 +110,11 @@ def _text(client, sid: str, body: str):
 
 
 def test_guided_chat_matches_the_demo(client, twilio_client) -> None:
-    """Menu, @agent-check with its form, the result, then done -> summary, as in /demo."""
+    """Menu, @agent-check with its form, the result, then @done -> summary, as in /demo."""
     _text(client, "SM-a", "hello")
     _text(client, "SM-b", "@agent-check")
     _text(client, "SM-c", "Name: Nobody Unknown-Person\nCountry: Kenya")
-    _text(client, "SM-d", "done")
+    _text(client, "SM-d", "@done")
     bodies = [body for to, body in twilio_client.sent]
     assert all(to == PLAYER for to, _ in twilio_client.sent)
     assert bodies[0] == conversation.WELCOME

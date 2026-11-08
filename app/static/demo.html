@@ -244,6 +244,38 @@
   .dot.doc-c { background: #7f66ff; }
   .dot.img-c { background: #007bfc; }
   .dot.up-c { background: #00a884; }
+
+  /* File preview before sending, like WhatsApp's: always dark, in both themes. */
+  .preview {
+    position: absolute; inset: 0; z-index: 10;
+    display: flex; flex-direction: column;
+    background: #0b141a; color: #e9edef;
+  }
+  .preview[hidden] { display: none; }
+  .pv-top { display: flex; align-items: center; gap: 8px; padding: 10px 12px; flex: none; }
+  .pv-top .icon-btn:hover { background: rgba(255, 255, 255, 0.12); }
+  .pv-top span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; }
+  .pv-body { flex: 1; min-height: 0; display: grid; place-items: center; padding: 12px 16px; }
+  .pv-img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 6px; }
+  .pv-doc { background: #202c33; border-radius: 12px; padding: 28px 24px; text-align: center; width: min(260px, 100%); }
+  .pv-doc .badge {
+    width: 56px; height: 68px; margin: 0 auto 12px; border-radius: 6px;
+    background: #e5484d; color: #fff; font-size: 14px; font-weight: 700; display: grid; place-items: center;
+  }
+  .pv-doc .name { font-size: 14px; overflow-wrap: anywhere; }
+  .pv-doc .size { font-size: 12px; color: #8696a0; margin-top: 4px; }
+  .pv-bottom { flex: none; padding: 6px 8px calc(10px + env(safe-area-inset-bottom)); }
+  .pv-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 4px 8px; }
+  .preview .chip { background: #202c33; color: #00a884; border-color: rgba(0, 168, 132, 0.6); }
+  .preview .chip:hover { background: #2a3942; }
+  .pv-row { display: flex; align-items: center; gap: 6px; }
+  #pv-caption {
+    flex: 1; min-width: 0; border: 0; outline: 0;
+    background: #2a3942; color: #e9edef; border-radius: 20px; padding: 10px 14px; font: inherit;
+  }
+  #pv-caption::placeholder { color: #8696a0; }
+  #pv-send { background: var(--accent); color: #fff; }
+  .pv-hint { margin: 8px 6px 0; font-size: 12.3px; color: #8696a0; min-height: 1.4em; }
 </style>
 </head>
 <body>
@@ -268,7 +300,7 @@
     <button type="button" class="chip">@agent-check</button>
     <button type="button" class="chip">@document-check</button>
     <button type="button" class="chip">@message-check</button>
-    <button type="button" class="chip">done</button>
+    <button type="button" class="chip">@done</button>
     <button type="button" class="chip">menu</button>
   </div>
 
@@ -276,7 +308,7 @@
     <div class="menu" id="menu" role="menu">
       <h4>Send a file</h4>
       <button type="button" id="upload"><span class="dot up-c">+</span>Document or photo from this device</button>
-      <p style="margin:2px 10px 6px;font-size:12px;color:var(--muted)">Type a caption first (e.g. @message-check) to send it with the file.</p>
+      <p style="margin:2px 10px 6px;font-size:12px;color:var(--muted)">You can add a caption such as @document-check before you send it.</p>
       <div id="samples"></div>
     </div>
     <button class="icon-btn" id="attach" title="Attach" aria-label="Attach a document">
@@ -288,6 +320,29 @@
     </button>
     <input type="file" id="file" accept="application/pdf,image/png,image/jpeg" hidden />
   </footer>
+
+  <div class="preview" id="preview" role="dialog" aria-modal="true" aria-label="Send a file" hidden>
+    <div class="pv-top">
+      <button class="icon-btn" id="pv-close" title="Cancel" aria-label="Cancel">
+        <svg viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      </button>
+      <span id="pv-name"></span>
+    </div>
+    <div class="pv-body" id="pv-body"></div>
+    <div class="pv-bottom">
+      <div class="pv-chips" aria-label="Choose a check">
+        <button type="button" class="chip pv-chip">@document-check</button>
+        <button type="button" class="chip pv-chip">@message-check</button>
+      </div>
+      <div class="pv-row">
+        <input id="pv-caption" type="text" placeholder="Add a caption, e.g. @document-check" autocomplete="off" aria-label="Caption" />
+        <button class="icon-btn" id="pv-send" title="Send" aria-label="Send">
+          <svg viewBox="0 0 24 24"><path d="M2.01 21 23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+        </button>
+      </div>
+      <p class="pv-hint" id="pv-hint" aria-live="polite"></p>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -421,16 +476,16 @@
     return bytes < 1024 * 1024 ? Math.max(1, Math.round(bytes / 1024)) + " kB" : (bytes / 1024 / 1024).toFixed(1) + " MB";
   }
 
+  function ext(file) { return (file.name.split(".").pop() || "file").toUpperCase().slice(0, 4); }
+
   function sendFile(file, caption) {
-    caption = (caption !== undefined ? caption : textEl.value).trim();
-    textEl.value = ""; autosize();
+    caption = (caption || "").trim();
     let inner;
     if (file.type.startsWith("image/")) {
       inner = '<img class="shot" alt="" src="' + URL.createObjectURL(file) + '">';
     } else {
-      const ext = (file.name.split(".").pop() || "file").toUpperCase().slice(0, 4);
-      inner = '<div class="doc"><div class="badge">' + esc(ext) + '</div><div><div class="name">' + esc(file.name) +
-              '</div><div class="size">' + sizeLabel(file.size) + " · " + esc(ext) + "</div></div></div>";
+      inner = '<div class="doc"><div class="badge">' + esc(ext(file)) + '</div><div><div class="name">' + esc(file.name) +
+              '</div><div class="size">' + sizeLabel(file.size) + " · " + esc(ext(file)) + "</div></div></div>";
     }
     if (caption) inner += '<span class="caption">' + format(caption) + "</span>";
     unread.push(addRow("out", inner, new Date(), true));
@@ -446,11 +501,86 @@
       const r = await fetch("/v1/demo/samples/" + encodeURIComponent(s.name));
       if (!r.ok) throw new Error();
       const blob = await r.blob();
-      sendFile(new File([blob], s.name, { type: s.mime }), s.mime.startsWith("image/") ? "@message-check" : "@document-check");
+      openPreview(new File([blob], s.name, { type: s.mime }), s.mime.startsWith("image/") ? "@message-check" : "@document-check");
     } catch (e) {
       notice("Could not load that sample.");
     }
   }
+
+  // --- file preview: see the file, add a caption (e.g. @document-check), then send or cancel ---
+  const preview = document.getElementById("preview");
+  const pvBody = document.getElementById("pv-body");
+  const pvCaption = document.getElementById("pv-caption");
+  const pvHint = document.getElementById("pv-hint");
+  const TYPES = ["application/pdf", "image/png", "image/jpeg"];
+  const MAX_BYTES = 20 * 1024 * 1024;
+  let pendingFile = null;
+  let pendingUrl = null;
+
+  function openPreview(file, caption) {
+    if (!TYPES.includes(file.type)) { notice("OffsAid can read PDF files and PNG or JPEG images only."); return; }
+    if (file.size > MAX_BYTES) { notice("That file is larger than 20 MB. Send a smaller file, or a screenshot of each page."); return; }
+    pendingFile = file;
+    document.getElementById("pv-name").textContent = file.name;
+    pvBody.innerHTML = "";
+    if (file.type.startsWith("image/")) {
+      pendingUrl = URL.createObjectURL(file);
+      const img = document.createElement("img");
+      img.className = "pv-img"; img.alt = "Preview of " + file.name; img.src = pendingUrl;
+      pvBody.appendChild(img);
+    } else {
+      pvBody.innerHTML = '<div class="pv-doc"><div class="badge">' + esc(ext(file)) + '</div><div class="name">' +
+        esc(file.name) + '</div><div class="size">' + sizeLabel(file.size) + " · " + esc(ext(file)) + "</div></div>";
+    }
+    pvCaption.value = caption || "";
+    updateHint();
+    preview.hidden = false;
+    pvCaption.focus();
+  }
+
+  function closePreview() {
+    preview.hidden = true;
+    pvBody.innerHTML = "";
+    if (pendingUrl) URL.revokeObjectURL(pendingUrl);
+    pendingFile = pendingUrl = null;
+  }
+
+  function sendPreview() {
+    if (!pendingFile) return;
+    const file = pendingFile, caption = pvCaption.value;
+    closePreview();
+    sendFile(file, caption);
+  }
+
+  // What the caption will do, read the same way as the server: only a command on the first line counts.
+  const CAPTION_COMMAND = /^\s*@\s*(agent|document|doc|message|messages|chat)\b/i;
+  function updateHint() {
+    const m = (pvCaption.value.split("\n")[0] || "").match(CAPTION_COMMAND);
+    const word = m ? m[1].toLowerCase() : "";
+    const image = pendingFile && pendingFile.type.startsWith("image/");
+    if (word === "agent") pvHint.textContent = "The agent check takes the agent's details as text, not a file. Use @document-check or @message-check.";
+    else if (word === "document" || word === "doc") pvHint.textContent = "Document check: what this letter, contract or payment request claims.";
+    else if (word) pvHint.textContent = "Message check: warning signs in the agent's messages in this chat screenshot.";
+    else pvHint.textContent = image ? "No check chosen: we run the document check, and read any chat messages in the image too."
+                                    : "No check chosen: we run the document check.";
+  }
+
+  function useCommand(command) {
+    const first = pvCaption.value.split("\n")[0];
+    const rest = first.replace(/^\s*@\s*[a-z]+(?:[\s_-]*check)?\b\s*/i, "");
+    pvCaption.value = command + (rest ? " " + rest : "");
+    updateHint();
+    pvCaption.focus();
+  }
+
+  document.getElementById("pv-send").addEventListener("click", sendPreview);
+  document.getElementById("pv-close").addEventListener("click", closePreview);
+  document.querySelectorAll(".pv-chip").forEach(c => c.addEventListener("click", () => useCommand(c.textContent)));
+  pvCaption.addEventListener("input", updateHint);
+  pvCaption.addEventListener("keydown", e => {
+    if (e.key === "Enter") { e.preventDefault(); sendPreview(); }
+  });
+  document.addEventListener("keydown", e => { if (e.key === "Escape" && !preview.hidden) closePreview(); });
 
   async function loadSamples() {
     try {
@@ -482,7 +612,7 @@
   }
 
   document.getElementById("send").addEventListener("click", sendText);
-  document.querySelectorAll(".chip").forEach(c => c.addEventListener("click", () => { textEl.value = c.textContent; sendText(); }));
+  document.querySelectorAll("#chips .chip").forEach(c => c.addEventListener("click", () => { textEl.value = c.textContent; sendText(); }));
   textEl.addEventListener("keydown", e => {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendText(); }
   });
@@ -491,13 +621,18 @@
   document.getElementById("upload").addEventListener("click", () => { menu.classList.remove("open"); fileEl.click(); });
   document.addEventListener("click", e => { if (!menu.contains(e.target)) menu.classList.remove("open"); });
   fileEl.addEventListener("change", () => {
-    if (fileEl.files[0]) sendFile(fileEl.files[0]);
+    if (fileEl.files[0]) {
+      // Anything already typed in the message box becomes the caption, as on WhatsApp.
+      openPreview(fileEl.files[0], textEl.value.trim());
+      textEl.value = ""; autosize();
+    }
     fileEl.value = "";
   });
   document.getElementById("newchat").addEventListener("click", () => {
     chatId = newId();
     try { sessionStorage.setItem("offsaid-chat", chatId); } catch (e) {}
     seen = 0;
+    closePreview();
     setTyping(false);
     log.querySelectorAll(".row, .notice:not(:first-child)").forEach(n => n.remove());
     poll();

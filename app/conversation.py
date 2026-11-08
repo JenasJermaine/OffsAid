@@ -3,7 +3,8 @@
     @agent-check     Name / Licence number / Phone / Country  -> licensed-agent lookup (Step 1)
     @document-check  a PDF or photo of a document            -> claim checks, cross-case linking, web check
     @message-check   a chat screenshot, or pasted messages     -> wording patterns in the agent's messages
-    done             summary of everything checked in this chat; referral to KEFWA when a check raised concerns
+    @done            summary of everything checked in this chat; referral to KEFWA when a check raised concerns
+                     (only "@done" with the @: words like "no" or "done" alone are not commands)
 
 Transport-agnostic: the caller passes `send(text)`. The web demo (app/demo_chat.py) uses it today; the
 WhatsApp/Twilio webhooks can call handle() the same way, with the player's number as `contact`.
@@ -48,7 +49,7 @@ WELCOME = (
     "Check a document you were sent: an offer letter, trial invitation, contract, visa letter or payment request.\n\n"
     "3. *@message-check*\n"
     "Check the agent's chat messages for warning signs. You send a screenshot of the chat.\n\n"
-    "You can run one check or all three, in any order. When you are finished, send *done* for a summary "
+    "You can run one check or all three, in any order. When you are finished, send *@done* for a summary "
     "of everything we found. Send *menu* at any time to see this again.\n\n"
     "_Privacy: if your case needs a closer look, we send it to KEFWA (Kenya Footballers Welfare Association) "
     "for review. KEFWA then receives your phone number and our findings so they can contact you._"
@@ -70,6 +71,12 @@ AGENT_PROMPT = (
     "Country: Kenya"
 )
 AGENT_TEMPLATE = "Name: \nLicence number: \nPhone: \nCountry: "
+AGENT_NO_FILE = (
+    "The agent check works with the agent's details as text, not with a file.\n\n"
+    "To check this file, send it again with *@document-check* (a letter, contract or payment request) or "
+    "*@message-check* (a screenshot of your chat with the agent) as the caption.\n\n"
+    "Or, for the agent check, copy the next message, fill in what you know, and send it back."
+)
 AGENT_NEED_ONE = (
     "We need at least the agent's *name*, *licence number* or *phone*. Please send it like this:\n\n"
     "Name: James Otieno\nPhone: 0700 000 002"
@@ -104,7 +111,7 @@ SCREENSHOT_ACK = "Thanks, we received your screenshot. We are reading the agent'
 
 NEXT = (
     "Do you have anything else to check?\n"
-    "Send *@agent-check*, *@document-check* or *@message-check*, or send *done* for a summary of what we found."
+    "Send *@agent-check*, *@document-check* or *@message-check*, or send *@done* for a summary of what we found."
 )
 NOTHING_YET = "You have not run any checks in this chat yet.\n\n" + WELCOME
 
@@ -174,15 +181,16 @@ ALIASES = {
     **dict.fromkeys(["agentcheck", "agent", "checkagent", "1"], "agent"),
     **dict.fromkeys(["documentcheck", "document", "doccheck", "doc", "checkdocument", "2"], "document"),
     **dict.fromkeys(["messagecheck", "message", "messages", "chatcheck", "chat", "checkmessage", "3"], "message"),
-    **dict.fromkeys(["done", "summary", "finish", "finished", "thatsall", "thatsit", "nothingelse", "no", "nope",
-                     "imdone", "end"], "done"),
+    "done": "done",   # only as "@done" (see parse_command)
     **dict.fromkeys(["menu", "help", "hi", "hello", "hey", "start", "habari", "mambo", "0"], "menu"),
 }
 CHECKS = ("agent", "document", "message")
-# Casual words that only count as commands outside a check, so a pasted chat that starts with "Hello",
-# or "No" as an answer, is not mistaken for one. Written with @, or as menu/done, they always count.
-WEAK = {"hi", "hello", "hey", "habari", "mambo", "start", "help", "no", "nope", "end", "agent", "document", "doc",
+# Casual words that only count as commands outside a check, so a pasted chat that starts with "Hello"
+# is not mistaken for one. Written with @, or as menu, they always count.
+WEAK = {"hi", "hello", "hey", "habari", "mambo", "start", "help", "agent", "document", "doc",
         "message", "messages", "chat", "0", "1", "2", "3"}
+# Commands that only count when written with @, so an ordinary word cannot end the chat by surprise.
+AT_ONLY = {"done"}
 
 
 def _norm(s: str) -> str:
@@ -197,7 +205,8 @@ def parse_command(text: str, strict: bool = False) -> tuple[Optional[str], str]:
         return None, ""
     first, _, rest = t.partition("\n")
     key = _norm(first)
-    if key in ALIASES and not (strict and key in WEAK and not first.lstrip().startswith("@")):
+    has_at = first.lstrip().startswith("@")
+    if key in ALIASES and not (strict and key in WEAK and not has_at) and not (key in AT_ONLY and not has_at):
         return ALIASES[key], rest.strip()
     m = re.match(r"^@\s*([a-z]+(?:[\s_-]*check)?)\b[\s:,-]*(.*)$", first, re.I)
     if m and _norm(m.group(1)) in ALIASES:
@@ -273,7 +282,10 @@ def _handle(conv: Conversation, text: str, file, send: Send, message_id: str) ->
         return
     if command in CHECKS:
         conv.mode = command
-        if file is not None:
+        if file is not None and command == "agent":
+            send(AGENT_NO_FILE)
+            send(AGENT_TEMPLATE)
+        elif file is not None:
             _run_file(conv, command, file, send, message_id)
         elif command == "agent" and payload:
             _agent(conv, payload, send)
