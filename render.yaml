@@ -4,9 +4,9 @@ services:
   - type: web
     name: offsaid
     runtime: docker
-    # Not "free": a free service sleeps after 15 idle minutes, and Twilio gives up on a webhook
-    # after 15 seconds, so the first WhatsApp message after a quiet spell would be lost.
-    plan: starter
+    # Free: sleeps after 15 idle minutes and takes 30-60 s to wake. Twilio waits only 15 s, so keep
+    # it awake with an uptime pinger on /health, or switch to "starter" (paid) before real use.
+    plan: free
     region: frankfurt # closest Render region to Kenya
     healthCheckPath: /health
     autoDeploy: true
@@ -46,6 +46,7 @@ services:
 
 databases:
   - name: offsaid-db
-    plan: basic-256mb
+    # Free Postgres expires 30 days after creation. Switch to "basic-256mb" (paid) to keep the data.
+    plan: free
     region: frankfurt
     postgresMajorVersion: "16"
