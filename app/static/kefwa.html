@@ -3,146 +3,460 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>KEFWA Review Queue</title>
+<title>KEFWA Review</title>
 <style>
   :root {
-    --bg: #f4f6f8; --card: #ffffff; --ink: #14212b; --muted: #5b6b78; --line: #dde3e8;
-    --accent: #0b6e4f; --warn: #b54708; --warn-bg: #fff4e5; --info-bg: #e8f3fc; --info: #1f5f99;
-    --danger: #b42318;
+    --bg: #f6f6f4;
+    --panel: #ffffff;
+    --ink: #1d2023;
+    --muted: #686e74;
+    --faint: #9a9fa5;
+    --line: #e6e6e2;
+    --hover: #f2f2ef;
+    --sel: #ebf3ee;
+    --accent: #1e6b47;
+    --accent-ink: #ffffff;
+    --chat: #1e6b47;
+    --link: #b7791f;
+    --danger: #b3261e;
+    --well: #f6f6f4;
+    color-scheme: light;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
-      --bg: #0f1418; --card: #182027; --ink: #e6edf2; --muted: #93a3b0; --line: #2a353e;
-      --accent: #3cc48f; --warn: #f5a75b; --warn-bg: #33240f; --info-bg: #13283a; --info: #7db8ea; --danger: #f97066;
+      --bg: #111315; --panel: #17191c; --ink: #e7e9eb; --muted: #9ca2a8; --faint: #6b7178;
+      --line: #25292d; --hover: #1d2024; --sel: #1b2a22; --accent: #62c08f; --accent-ink: #0c1912;
+      --chat: #62c08f; --link: #e0a84e; --danger: #f07a72; --well: #111315;
+      color-scheme: dark;
     }
   }
+  :root[data-theme="dark"] {
+    --bg: #111315; --panel: #17191c; --ink: #e7e9eb; --muted: #9ca2a8; --faint: #6b7178;
+    --line: #25292d; --hover: #1d2024; --sel: #1b2a22; --accent: #62c08f; --accent-ink: #0c1912;
+    --chat: #62c08f; --link: #e0a84e; --danger: #f07a72; --well: #111315;
+    color-scheme: dark;
+  }
+
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 -apple-system, "Segoe UI", Roboto, Arial, sans-serif; }
-  header { background: var(--card); border-bottom: 1px solid var(--line); padding: 14px 16px; }
-  header .in { max-width: 920px; margin: 0 auto; display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
-  h1 { font-size: 19px; margin: 0; }
-  header p { margin: 0; color: var(--muted); font-size: 13.5px; flex: 1; min-width: 220px; }
-  main { max-width: 920px; margin: 0 auto; padding: 16px; }
-  .empty { text-align: center; color: var(--muted); padding: 48px 16px; }
-  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 14px; }
-  .top { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
-  .badge { font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 999px; }
-  .b-chat { background: var(--info-bg); color: var(--info); }
-  .b-link { background: var(--warn-bg); color: var(--warn); }
-  .b-sim { background: var(--line); color: var(--muted); }
-  .when { color: var(--muted); font-size: 13px; margin-left: auto; }
-  .grid { display: grid; grid-template-columns: 150px 1fr; gap: 6px 14px; font-size: 14px; }
-  .grid dt { color: var(--muted); }
-  .grid dd { margin: 0; overflow-wrap: anywhere; }
-  .contact { font-weight: 700; font-size: 16px; }
-  .contact a { color: var(--accent); text-decoration: none; }
-  ul.reasons { margin: 0; padding-left: 18px; }
-  details { margin-top: 12px; }
-  summary { cursor: pointer; color: var(--accent); font-weight: 600; font-size: 14px; }
-  .findings { white-space: pre-wrap; background: var(--bg); border-radius: 8px; padding: 12px; margin-top: 8px; font-size: 14px; }
-  .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
-  .actions input { flex: 1 1 200px; min-width: 0; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--ink); font: inherit; font-size: 14px; }
-  button { border: 1px solid var(--line); background: var(--card); color: var(--ink); border-radius: 8px; padding: 7px 12px; font: inherit; font-size: 13.5px; cursor: pointer; }
-  button:hover { border-color: var(--muted); }
-  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-  button.danger { color: var(--danger); }
-  .note { color: var(--muted); font-size: 12.5px; margin-top: 8px; }
-  @media (max-width: 560px) { .grid { grid-template-columns: 1fr; gap: 2px; } .grid dt { margin-top: 6px; } }
+  html, body { height: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 14px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    display: flex; flex-direction: column;
+  }
+  button { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* top bar */
+  .bar {
+    flex: none; height: 52px; display: flex; align-items: center; gap: 10px;
+    padding: 0 16px; background: var(--panel); border-bottom: 1px solid var(--line);
+  }
+  .brand { font-weight: 650; letter-spacing: -0.01em; }
+  .brand span { color: var(--muted); font-weight: 400; margin-left: 6px; }
+  .count { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .bar .grow { flex: 1; }
+  .updated { color: var(--faint); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+  .icon {
+    width: 32px; height: 32px; border: 0; border-radius: 8px; background: none; cursor: pointer;
+    display: grid; place-items: center; color: var(--muted);
+  }
+  .icon:hover { background: var(--hover); color: var(--ink); }
+  .icon svg { width: 18px; height: 18px; fill: currentColor; }
+  .icon.spin svg { animation: spin 0.6s linear; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* two panes */
+  main { flex: 1; min-height: 0; display: grid; grid-template-columns: 340px 1fr; }
+  #list { overflow-y: auto; border-right: 1px solid var(--line); background: var(--panel); }
+  #detail { overflow-y: auto; }
+
+  .item {
+    display: block; width: 100%; text-align: left; border: 0; background: none; cursor: pointer;
+    padding: 12px 16px 13px; border-bottom: 1px solid var(--line);
+  }
+  .item:hover { background: var(--hover); }
+  .item.sel { background: var(--sel); }
+  .item-top { display: flex; align-items: center; gap: 8px; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+  .d-chat { background: var(--chat); }
+  .d-link { background: var(--link); }
+  .item-title { flex: 1; min-width: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .item time { color: var(--faint); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+  .item-sub, .item-reason { display: block; padding-left: 15px; }
+  .item-sub { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+  .item-reason {
+    color: var(--faint); font-size: 13px; margin-top: 2px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .list-empty { padding: 40px 20px; color: var(--faint); text-align: center; }
+
+  /* case detail */
+  .case { max-width: 720px; padding: 28px 32px 40px; }
+  .back { display: none; }
+  .case h1 { font-size: 22px; line-height: 1.25; font-weight: 650; letter-spacing: -0.015em; margin: 0; overflow-wrap: anywhere; }
+  .meta { color: var(--muted); margin: 6px 0 0; font-size: 13.5px; }
+  .tag {
+    display: inline-block; font-size: 12px; color: var(--muted); border: 1px solid var(--line);
+    border-radius: 6px; padding: 0 6px; margin-left: 4px; vertical-align: 1px;
+  }
+  section { margin-top: 28px; }
+  h2 { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin: 0 0 8px; }
+
+  .contact {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px;
+  }
+  .phone { flex: 1; min-width: 160px; font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: 0.01em; }
+  .phone.none { font-size: 14px; font-weight: 400; color: var(--muted); }
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px;
+    border: 1px solid var(--line); border-radius: 8px; background: var(--panel); cursor: pointer;
+    text-decoration: none; color: var(--ink); font-size: 13.5px;
+  }
+  .btn:hover { background: var(--hover); }
+  .btn:disabled { opacity: 0.55; cursor: default; }
+
+  ul.reasons { margin: 0; padding: 0; list-style: none; }
+  ul.reasons li { position: relative; padding-left: 16px; margin: 4px 0; }
+  ul.reasons li::before { content: ""; position: absolute; left: 2px; top: 0.62em; width: 5px; height: 5px; border-radius: 50%; background: var(--faint); }
+
+  .facts { display: grid; grid-template-columns: max-content 1fr; gap: 4px 18px; margin: 0; }
+  .facts dt { color: var(--muted); }
+  .facts dd { margin: 0; overflow-wrap: anywhere; }
+
+  .findings {
+    white-space: pre-wrap; overflow-wrap: anywhere; background: var(--panel); border: 1px solid var(--line);
+    border-radius: 10px; padding: 14px 16px; font-size: 13.5px; line-height: 1.6;
+  }
+  .aside { color: var(--faint); font-size: 12.5px; margin-top: 6px; }
+
+  .decide { margin-top: 32px; padding-top: 24px; border-top: 1px solid var(--line); }
+  .seg { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--line); border-radius: 9px; padding: 2px; background: var(--panel); }
+  .seg button {
+    border: 0; background: none; cursor: pointer; padding: 6px 12px; border-radius: 7px; color: var(--muted); font-size: 13.5px;
+  }
+  .seg button:hover { color: var(--ink); }
+  .seg button[aria-pressed="true"] { background: var(--sel); color: var(--ink); font-weight: 600; }
+  .hint { color: var(--muted); font-size: 13px; margin: 8px 0 0; min-height: 1.5em; }
+  textarea {
+    display: block; width: 100%; margin-top: 14px; min-height: 64px; resize: vertical;
+    border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px;
+    background: var(--panel); color: var(--ink); font: inherit;
+  }
+  textarea::placeholder { color: var(--faint); }
+  .row { display: flex; align-items: center; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+  .row .grow { flex: 1; }
+  .primary {
+    height: 36px; padding: 0 16px; border: 0; border-radius: 9px; cursor: pointer;
+    background: var(--accent); color: var(--accent-ink); font-weight: 600;
+  }
+  .primary:hover { filter: brightness(1.06); }
+  .primary:disabled { opacity: 0.6; cursor: default; }
+  .quiet { border: 0; background: none; padding: 6px 2px; color: var(--muted); cursor: pointer; font-size: 13.5px; }
+  .quiet:hover { color: var(--danger); }
+  .confirm { color: var(--ink); font-size: 13.5px; }
+  .danger { height: 32px; padding: 0 12px; border: 0; border-radius: 8px; background: var(--danger); color: #fff; cursor: pointer; font-weight: 600; }
+
+  .placeholder { height: 100%; display: grid; place-content: center; text-align: center; padding: 32px; color: var(--muted); }
+  .placeholder h1 { font-size: 18px; font-weight: 600; color: var(--ink); margin: 0 0 6px; }
+  .placeholder p { margin: 0 auto; max-width: 340px; }
+
+  #toast {
+    position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 12px); opacity: 0; pointer-events: none;
+    background: var(--ink); color: var(--panel); padding: 8px 14px; border-radius: 9px; font-size: 13.5px;
+    transition: opacity 0.18s, transform 0.18s;
+  }
+  #toast.show { opacity: 1; transform: translate(-50%, 0); }
+  #toast.err { background: var(--danger); color: #fff; }
+
+  /* phones: one pane at a time */
+  @media (max-width: 760px) {
+    main { grid-template-columns: 1fr; }
+    #list { border-right: 0; }
+    #detail { display: none; background: var(--bg); }
+    main.show-detail #list { display: none; }
+    main.show-detail #detail { display: block; }
+    .case { padding: 16px 16px 32px; }
+    .back {
+      display: inline-flex; align-items: center; gap: 4px; margin: 0 0 12px -6px; padding: 4px 6px;
+      border: 0; background: none; color: var(--accent); cursor: pointer; font-size: 14px;
+    }
+    .updated { display: none; }
+  }
 </style>
 </head>
 <body>
-<header>
-  <div class="in">
-    <h1>KEFWA review queue</h1>
-    <p>Cases OffsAid sent for a person to review. Findings are evidence, not a verdict. Refreshes every 10 seconds.</p>
-    <button type="button" id="refresh">Refresh</button>
-  </div>
-</header>
-<main id="list"><div class="empty">Loading…</div></main>
+<div class="bar">
+  <div class="brand">KEFWA<span>Review</span></div>
+  <span class="count" id="count"></span>
+  <span class="grow"></span>
+  <span class="updated" id="updated"></span>
+  <button class="icon" id="refresh" type="button" title="Refresh" aria-label="Refresh">
+    <svg viewBox="0 0 24 24"><path d="M17.65 6.35A7.96 7.96 0 0 0 12 4a8 8 0 1 0 7.73 10h-2.08A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+  </button>
+</div>
+<main id="main">
+  <nav id="list" aria-label="Open cases"><div class="list-empty">Loading…</div></nav>
+  <div id="detail" aria-live="polite"></div>
+</main>
+<div id="toast" role="status"></div>
 
 <script>
 (() => {
-  const list = document.getElementById("list");
+  const $ = s => document.querySelector(s);
+  const listEl = $("#list"), detailEl = $("#detail"), mainEl = $("#main");
+  const OUTCOMES = {
+    confirmed_scam: ["Confirmed scam", "Later offers that share this phone number, account or email will be flagged automatically."],
+    verified_genuine: ["Verified genuine", "The offer was checked with the club and is real."],
+    reported: ["Reported", "Passed on to the authorities or the club."],
+  };
+  let items = [];
+  let selected = null;
+  let outcome = null;
+
   const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  const bold = s => esc(s).replace(/\*([^*\n]+)\*/g, "<b>$1</b>").replace(/(^|\s)_([^_\n]+)_(?=\s|$)/g, "$1<i>$2</i>");
-  const when = iso => new Date(iso).toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
+  // The findings use WhatsApp formatting: *bold* and _italic_.
+  const fmt = s => esc(s).replace(/\*([^*\n]+)\*/g, "<b>$1</b>").replace(/(^|\s)_([^_\n]+)_(?=\s|$)/g, "$1<i>$2</i>");
+  const cap = s => s ? s[0].toUpperCase() + s.slice(1) : s;
+  const wide = () => matchMedia("(min-width: 761px)").matches;
+  const isChat = it => it.origin === "chat_summary";
+  const title = it => it.claimed_club || (isChat(it) ? "Chat referral" : "Flagged document");
+  const fullTime = iso => new Date(iso).toLocaleString([], { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  function ago(iso) {
+    const s = (Date.now() - new Date(iso).getTime()) / 1000;
+    if (s < 60) return "now";
+    if (s < 3600) return Math.floor(s / 60) + "m";
+    if (s < 86400) return Math.floor(s / 3600) + "h";
+    return new Date(iso).toLocaleDateString([], { day: "numeric", month: "short" });
+  }
 
   async function api(method, url, body) {
     // location.origin never carries credentials, so this also works when the page was opened as user:pass@host.
-    const r = await fetch(location.origin + url, { method, headers: body ? { "Content-Type": "application/json" } : {}, body: body ? JSON.stringify(body) : undefined });
-    if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || r.status);
+    const r = await fetch(location.origin + url, {
+      method, headers: body ? { "Content-Type": "application/json" } : {}, body: body ? JSON.stringify(body) : undefined,
+    });
+    if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || "Error " + r.status);
     return r.json();
   }
 
-  function card(item) {
-    const chat = item.origin === "chat_summary";
-    const reasons = (item.reasons || []).map(r => "<li>" + esc(r) + "</li>").join("");
-    const contact = item.player_contact
-      ? '<span class="contact"><a href="tel:' + esc(item.player_contact) + '">' + esc(item.player_contact) + "</a></span>"
-      : '<span style="color:var(--muted)">' + (chat ? "The player chose not to share a number" : "Not yet shared (no chat summary)") + "</span>";
-    const rows = [
-      ["Player's phone", contact],
-      ["Why it is here", "<ul class=\"reasons\">" + reasons + "</ul>"],
-    ];
-    if (item.case_id) {
-      rows.push(["Claimed club / agent", esc(item.claimed_club || "not given") + " / " + esc(item.claimed_agent || "not given")]);
-      rows.push(["Case", "#" + item.case_id + " · status " + esc(item.case_status) +
-                 (item.linked_case_ids && item.linked_case_ids.length ? " · matches earlier cases " + item.linked_case_ids.map(i => "#" + i).join(", ") : "")]);
+  let toastTimer;
+  function toast(msg, err) {
+    const t = $("#toast");
+    t.textContent = msg;
+    t.classList.toggle("err", !!err);
+    t.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove("show"), 2600);
+  }
+
+  // --- list ----------------------------------------------------------------------------
+  function renderList() {
+    $("#count").textContent = items.length ? items.length + " open" : "";
+    if (!items.length) { listEl.innerHTML = '<div class="list-empty">No open cases</div>'; return; }
+    listEl.innerHTML = items.map(it => `
+      <button type="button" class="item${it.id === selected ? " sel" : ""}" data-id="${it.id}" aria-current="${it.id === selected}">
+        <span class="item-top">
+          <span class="dot ${isChat(it) ? "d-chat" : "d-link"}" title="${isChat(it) ? "Referred from a chat" : "Flagged by case matching"}"></span>
+          <span class="item-title">${esc(title(it))}</span>
+          <time datetime="${esc(it.created_at)}">${ago(it.created_at)}</time>
+        </span>
+        <span class="item-sub">${esc(it.player_contact || "No number shared")}${it.source === "simulated" ? " · simulated" : ""}</span>
+        <span class="item-reason">${esc(cap((it.reasons || [])[0] || ""))}</span>
+      </button>`).join("");
+  }
+
+  // --- detail --------------------------------------------------------------------------
+  function renderDetail() {
+    const it = items.find(i => i.id === selected);
+    detailEl.dataset.id = selected ?? "";
+    outcome = null;
+    if (!it) {
+      detailEl.innerHTML = items.length
+        ? '<div class="placeholder"><p>Select a case to review it.</p></div>'
+        : '<div class="placeholder"><h1>All clear</h1><p>Nothing is waiting for review. Cases arrive here when a player\'s summary raises concerns, or when a document matches earlier cases.</p></div>';
+      return;
     }
-    const statusButtons = item.case_id ? `
-        <button type="button" data-act="status" data-status="confirmed_scam">Mark confirmed scam</button>
-        <button type="button" data-act="status" data-status="verified_genuine">Mark verified genuine</button>
-        <button type="button" data-act="status" data-status="reported">Mark reported</button>` : "";
-    return `
-      <article class="card" data-id="${item.id}" data-case="${item.case_id || ""}">
-        <div class="top">
-          <span class="badge ${chat ? "b-chat" : "b-link"}">${chat ? "Referred from chat summary" : "Escalated by cross-case linking"}</span>
-          ${item.source === "simulated" ? '<span class="badge b-sim">simulated case</span>' : ""}
-          <span class="when">${esc(when(item.created_at))}</span>
+    const meta = [isChat(it) ? "Referred from a chat" : "Flagged by case matching", fullTime(it.created_at)];
+    if (it.case_id) meta.push("Case " + it.case_id);
+    const contact = it.player_contact
+      ? `<span class="phone">${esc(it.player_contact)}</span>
+         <a class="btn" href="tel:${esc(it.player_contact)}">Call</a>
+         <button class="btn" type="button" data-copy="${esc(it.player_contact)}">Copy</button>`
+      : `<span class="phone none">${isChat(it) ? "The player chose not to share a number." : "No number yet. The player has not asked for a summary."}</span>`;
+    const facts = [];
+    if (it.claimed_club) facts.push(["Club", esc(it.claimed_club)]);
+    if (it.claimed_agent) facts.push(["Agent", esc(it.claimed_agent)]);
+    if (it.linked_case_ids && it.linked_case_ids.length) facts.push(["Matches", "Earlier cases " + it.linked_case_ids.map(esc).join(", ")]);
+    const seg = it.case_id ? `
+      <div class="seg" role="group" aria-label="Outcome">
+        ${Object.entries(OUTCOMES).map(([k, [label]]) => `<button type="button" data-outcome="${k}" aria-pressed="false">${label}</button>`).join("")}
+      </div>
+      <p class="hint" id="hint">Choose an outcome, or close the case without one.</p>` : "";
+
+    detailEl.innerHTML = `
+      <article class="case">
+        <button type="button" class="back" id="back">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M15.4 7.4 14 6l-6 6 6 6 1.4-1.4L10.8 12z"/></svg>Cases
+        </button>
+        <h1>${esc(title(it))}</h1>
+        <p class="meta">${meta.map(esc).join(" · ")}${it.source === "simulated" ? '<span class="tag">Simulated</span>' : ""}</p>
+
+        <section><h2>Player</h2><div class="contact">${contact}</div></section>
+
+        <section><h2>Why it is here</h2>
+          <ul class="reasons">${(it.reasons || []).map(r => "<li>" + esc(cap(r)) + "</li>").join("")}</ul>
+        </section>
+
+        ${facts.length ? `<section><h2>Offer</h2><dl class="facts">${facts.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("")}</dl></section>` : ""}
+
+        ${it.findings_text ? `<section><h2>What the player was told</h2>
+          <div class="findings">${fmt(it.findings_text)}</div>
+          <p class="aside">Findings are evidence, not a verdict on the offer or the person.</p></section>` : ""}
+
+        <div class="decide">
+          <h2>Decision</h2>
+          ${seg}
+          <textarea id="note" placeholder="Note for the record (optional)" aria-label="Note"></textarea>
+          <div class="row" id="actions">
+            <button type="button" class="quiet" id="erase">Erase player data</button>
+            <span class="grow"></span>
+            <button type="button" class="primary" id="close">Close case</button>
+          </div>
         </div>
-        <dl class="grid">${rows.map(([k, v]) => "<dt>" + k + "</dt><dd>" + v + "</dd>").join("")}</dl>
-        ${item.findings_text ? '<details open><summary>Findings the player was sent</summary><div class="findings">' + bold(item.findings_text) + "</div></details>" : ""}
-        <div class="actions">
-          <input type="text" placeholder="Reviewer note (optional)" aria-label="Reviewer note">
-          ${statusButtons}
-          <button type="button" class="primary" data-act="resolve">Resolve</button>
-          <button type="button" class="danger" data-act="erase">Erase</button>
-        </div>
-        ${item.case_id ? '<p class="note">Marking a case "confirmed scam" makes later offers that share its phone number, account or email escalate automatically.</p>' : ""}
       </article>`;
   }
 
-  async function load() {
-    try {
-      const items = await api("GET", "/admin/review-queue");
-      list.innerHTML = items.length ? items.map(card).join("") : '<div class="empty">No open cases. Referrals from the chat appear here.</div>';
-    } catch (e) {
-      list.innerHTML = '<div class="empty">Could not load the queue: ' + esc(e.message) + "</div>";
-    }
+  function select(id) {
+    selected = id;
+    renderList();
+    renderDetail();
+    mainEl.classList.add("show-detail");
+    detailEl.scrollTop = 0;
   }
 
-  list.addEventListener("click", async e => {
-    const b = e.target.closest("button[data-act]");
-    if (!b) return;
-    const c = b.closest(".card");
-    const note = c.querySelector("input").value;
+  function removeCurrent() {
+    const i = items.findIndex(x => x.id === selected);
+    items.splice(i, 1);
+    selected = wide() ? (items[i] || items[i - 1] || {}).id ?? null : null;
+    if (!wide()) mainEl.classList.remove("show-detail");
+    renderList();
+    renderDetail();
+  }
+
+  // --- loading -------------------------------------------------------------------------
+  async function load() {
+    let fresh;
     try {
-      if (b.dataset.act === "status") await api("POST", `/admin/cases/${c.dataset.case}/status`, { status: b.dataset.status, note });
-      if (b.dataset.act === "resolve") await api("POST", `/admin/review-queue/${c.dataset.id}/resolve`, { note });
-      if (b.dataset.act === "erase") {
-        if (!confirm("Erase this item? The player's phone number and findings are deleted" + (c.dataset.case ? ", and the stored case with its hashes." : "."))) return;
-        if (c.dataset.case) await api("DELETE", `/admin/cases/${c.dataset.case}`);
-        else await api("DELETE", `/admin/review-queue/${c.dataset.id}`);
+      fresh = await api("GET", "/admin/review-queue");
+    } catch (e) {
+      if (!items.length) listEl.innerHTML = '<div class="list-empty">Could not load cases.<br>' + esc(e.message) + "</div>";
+      else toast("Could not refresh: " + e.message, true);
+      return;
+    }
+    items = fresh;
+    const before = selected;
+    if (selected != null && !items.some(i => i.id === selected)) selected = null;
+    if (selected == null && items.length && wide()) selected = items[0].id;
+    renderList();
+    // Re-draw the case only when the selection changed, so a note being typed is never lost.
+    if (selected !== before || String(selected ?? "") !== detailEl.dataset.id) renderDetail();
+    $("#updated").textContent = "Updated " + new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  }
+
+  // --- events --------------------------------------------------------------------------
+  listEl.addEventListener("click", e => {
+    const b = e.target.closest(".item");
+    if (b) select(Number(b.dataset.id));
+  });
+
+  detailEl.addEventListener("click", async e => {
+    const it = items.find(i => i.id === selected);
+    const t = e.target.closest("button");
+    if (!t || !it) return;
+
+    if (t.id === "back") { mainEl.classList.remove("show-detail"); return; }
+
+    if (t.dataset.copy) {
+      try { await navigator.clipboard.writeText(t.dataset.copy); toast("Number copied"); }
+      catch (err) { toast("Could not copy", true); }
+      return;
+    }
+
+    if (t.dataset.outcome) {
+      outcome = outcome === t.dataset.outcome ? null : t.dataset.outcome;
+      detailEl.querySelectorAll("[data-outcome]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.outcome === outcome)));
+      $("#hint").textContent = outcome ? OUTCOMES[outcome][1] : "Choose an outcome, or close the case without one.";
+      $("#close").textContent = outcome ? "Close as " + OUTCOMES[outcome][0].toLowerCase() : "Close case";
+      return;
+    }
+
+    if (t.id === "close") {
+      const note = $("#note").value.trim();
+      t.disabled = true;
+      try {
+        if (outcome && it.case_id) await api("POST", `/admin/cases/${it.case_id}/status`, { status: outcome, note });
+        else await api("POST", `/admin/review-queue/${it.id}/resolve`, { note });
+        toast(outcome ? "Closed as " + OUTCOMES[outcome][0].toLowerCase() : "Case closed");
+        removeCurrent();
+      } catch (err) {
+        t.disabled = false;
+        toast("Could not close the case: " + err.message, true);
       }
-      load();
-    } catch (err) {
-      alert("That did not work: " + err.message);
+      return;
+    }
+
+    if (t.id === "erase") {
+      $("#actions").innerHTML = `
+        <span class="confirm">Permanently delete the phone number and findings${it.case_id ? ", and the stored case" : ""}?</span>
+        <span class="grow"></span>
+        <button type="button" class="btn" id="erase-cancel">Cancel</button>
+        <button type="button" class="danger" id="erase-confirm">Erase</button>`;
+      $("#erase-cancel").focus();
+      return;
+    }
+    if (t.id === "erase-cancel") {
+      $("#actions").innerHTML = `
+        <button type="button" class="quiet" id="erase">Erase player data</button>
+        <span class="grow"></span>
+        <button type="button" class="primary" id="close">${outcome ? "Close as " + OUTCOMES[outcome][0].toLowerCase() : "Close case"}</button>`;
+      return;
+    }
+    if (t.id === "erase-confirm") {
+      t.disabled = true;
+      try {
+        if (it.case_id) await api("DELETE", `/admin/cases/${it.case_id}`);
+        else await api("DELETE", `/admin/review-queue/${it.id}`);
+        toast("Erased");
+        removeCurrent();
+      } catch (err) {
+        t.disabled = false;
+        toast("Could not erase: " + err.message, true);
+      }
     }
   });
 
-  document.getElementById("refresh").addEventListener("click", load);
+  // Up and down arrows move through the list (not while typing a note).
+  document.addEventListener("keydown", e => {
+    if (e.target.closest("textarea, input")) return;
+    if (e.key === "Escape" && mainEl.classList.contains("show-detail") && !wide()) { mainEl.classList.remove("show-detail"); return; }
+    if (!["ArrowDown", "ArrowUp", "j", "k"].includes(e.key) || !items.length) return;
+    e.preventDefault();
+    const i = items.findIndex(x => x.id === selected);
+    const next = e.key === "ArrowDown" || e.key === "j" ? Math.min(items.length - 1, i + 1) : Math.max(0, i - 1);
+    select(items[next].id);
+    listEl.querySelector(".item.sel")?.scrollIntoView({ block: "nearest" });
+  });
+
+  $("#refresh").addEventListener("click", () => {
+    const b = $("#refresh");
+    b.classList.remove("spin"); void b.offsetWidth; b.classList.add("spin");
+    load();
+  });
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) load(); });
+  setInterval(() => { if (!document.hidden) load(); }, 15000);
   load();
-  setInterval(() => { if (!document.querySelector(".actions input:focus")) load(); }, 10000);
 })();
 </script>
 </body>
