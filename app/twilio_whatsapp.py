@@ -66,7 +66,14 @@ class TwilioWhatsApp:
                 data={"From": settings.twilio_whatsapp_from, "To": to, "Body": chunk},
             )
             if response.status_code >= 400:
-                log.error("Twilio send failed %s", response.status_code)
+                try:
+                    code = response.json().get("code")
+                except ValueError:
+                    code = None
+                # Twilio's error code only (e.g. 21212 bad From, 63007 sender not on WhatsApp,
+                # 21608/63015 sandbox not joined); its message text can contain phone numbers.
+                log.error("Twilio send failed %s (Twilio error %s, https://www.twilio.com/docs/errors/%s)",
+                          response.status_code, code, code)
                 response.raise_for_status()
 
     def download_media(self, media_url: str) -> Media:

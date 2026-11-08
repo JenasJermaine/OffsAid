@@ -81,6 +81,8 @@ async def receive(request: Request, background: BackgroundTasks) -> Response:
         request.headers.get("x-forwarded-host", ""),
     )
     if not valid_signature(url, fields, request.headers.get("X-Twilio-Signature")):
+        # Usually TWILIO_AUTH_TOKEN is from another account, or the webhook URL in Twilio differs.
+        log.warning("Twilio signature rejected for %s", url)
         raise HTTPException(status_code=403, detail="Bad signature.")
     message_sid = fields.get("MessageSid", "")
     if message_sid and _first_time(message_sid):
