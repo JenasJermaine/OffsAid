@@ -349,6 +349,7 @@ Setup, once per database (`DATABASE_URL` and `OFFSAID_HASH_KEY` from `.env`):
 ```bash
 python -m scripts.migrate                                   # migrations/*.sql: tables + pg_trgm
 python -m scripts.seed_linking data/linking_seed/seed_cases.json   # 10 simulated demo cases, safe to re-run
+python -m scripts.reset_demo_data   # before a demo; reads DATABASE_URL from the environment only (never .env); --yes empties it
 ```
 
 The simulated cases use the invalid prefix `+254 999` and are labelled as simulated in the report.
@@ -372,8 +373,9 @@ Documents go through `whatsapp_webhook._send_offer`, the same checks as a WhatsA
 WhatsApp and Twilio webhooks run this same chat. The paperclip menu uploads a file from the computer or picks a sample; either opens a preview where a
 caption such as `@document-check` or `@message-check` can be added before sending, as on WhatsApp. "Lakeview United offer"
 (`data/demo/lakeview_united_offer.pdf`, invented, from `scripts/make_demo_letter.py`) reuses a phone
-number and a till from the simulated linking seeds under a new club name, so on a seeded Postgres
-database the report shows flagged links and a KEFWA escalation. Chats live in memory and are lost
+number from a simulated case KEFWA confirmed as a scam and a till from another simulated case, under a
+new club name, so on a seeded Postgres database the report shows flagged links (one with a confirmed
+fraud) and a KEFWA escalation. Chats live in memory and are lost
 on restart. Set `DEMO_CHAT_ENABLED=false` to turn the page off.
 
 ## Tests

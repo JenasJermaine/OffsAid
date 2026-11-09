@@ -1,8 +1,9 @@
 """Write data/demo/lakeview_united_offer.pdf: an INVENTED offer letter for the live demo.
 
 It reuses details from the simulated linking seeds under a new club name, so cross-case linking has
-something to find: the agent's WhatsApp number is sim-01's (Coast City FC) and the M-Pesa till is
-sim-02's (Harbour Town FC). Numbers use the invalid prefix +254 999; no real person or club.
+something to find: the agent's WhatsApp number is sim-06's (Gold Coast Academy, a case KEFWA confirmed as a
+scam) and the M-Pesa till is sim-02's (Harbour Town FC, not reviewed). Numbers use the invalid prefix +254 999;
+no real person or club.
 
     python scripts/make_demo_letter.py
 """
@@ -23,7 +24,7 @@ squad for the 2027 season, starting on 5 January 2027. Your visa, flights and ac
 arranged by the club.</p>
 <p>To confirm your place you must pay a registration fee of KES 25,000 to M-Pesa till number 9990002
 within 3 days of this letter. Places are limited and will be given to other players after that date.</p>
-<p>For any questions contact our agent Ms Otieno on WhatsApp +254 999 000 001.</p>
+<p>For any questions contact our agent Ms Otieno on WhatsApp +254 999 000 006.</p>
 <p>Yours sincerely,</p>
 <p><b>Ms Otieno</b><br/>Head of Recruitment, Lakeview United FC</p>
 <p style="font-size:8px;color:#999">Simulated document for the OffsAid demo. Invented club, people and numbers.</p>
