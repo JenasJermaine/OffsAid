@@ -81,3 +81,43 @@ def test_size_limit_applies_after_the_redirect(monkeypatch):
     twilio, _ = client(twilio_then_cdn)
     with pytest.raises(MediaTooLarge):
         twilio.download_media(MEDIA)
+
+
+# ------------------------------------------------------------------ sending
+
+
+def sender(monkeypatch, gap: float = 0.0):
+    import app.twilio_whatsapp as tw
+    from urllib.parse import parse_qs
+
+    monkeypatch.setattr(settings, "twilio_whatsapp_from", "whatsapp:+14155238886")
+    monkeypatch.setattr(tw, "SEND_GAP_SECONDS", gap)
+    bodies: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        bodies.append(parse_qs(request.content.decode())["Body"][0])
+        return httpx.Response(201, json={"sid": "SM1"})
+
+    return TwilioWhatsApp(httpx.Client(transport=httpx.MockTransport(handler))), bodies
+
+
+def test_long_reply_is_split_under_twilios_limit(monkeypatch):
+    twilio, bodies = sender(monkeypatch)
+    paragraphs = [f"- Claim {i}: " + "word " * 60 for i in range(20)]     # about 6,600 characters
+    twilio.send_text("whatsapp:+254700000001", "\n\n".join(paragraphs))
+    assert len(bodies) >= 5
+    assert all(len(b) <= 1500 for b in bodies)                            # Twilio rejects > 1,600 (error 21617)
+    assert "\n\n".join(bodies) == "\n\n".join(paragraphs)                 # nothing lost, in order
+
+
+def test_messages_to_one_number_are_spaced_out(monkeypatch):
+    import app.twilio_whatsapp as tw
+
+    slept: list[float] = []
+    monkeypatch.setattr(tw.time, "sleep", lambda s: slept.append(s))
+    twilio, bodies = sender(monkeypatch, gap=1.0)
+    twilio.send_text("whatsapp:+254700000001", "first")
+    twilio.send_text("whatsapp:+254700000001", "second")
+    twilio.send_text("whatsapp:+254700000002", "another player")          # no wait for a different number
+    assert bodies == ["first", "second", "another player"]
+    assert len(slept) == 1 and 0.9 < slept[0] <= 1.0

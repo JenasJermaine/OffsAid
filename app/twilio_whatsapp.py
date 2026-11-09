@@ -10,6 +10,8 @@ import base64
 import hashlib
 import hmac
 import logging
+import threading
+import time
 from urllib.parse import urljoin, urlparse
 
 import httpx
@@ -18,6 +20,13 @@ from app.config import settings
 from app.whatsapp import Media, MediaTooLarge, split_message
 
 log = logging.getLogger(__name__)
+
+# Twilio rejects a message body over 1,600 characters (error 21617), lower than Meta's 4,096,
+# so replies are split smaller here. A little under the limit leaves room for how Twilio counts.
+TWILIO_TEXT_LIMIT = 1500
+# Twilio does not guarantee that messages sent in quick succession arrive in order, so messages
+# to the same number are spaced out: the parts of a long report, the report and the next prompt.
+SEND_GAP_SECONDS = 1.0
 
 
 def signature(url: str, params: dict[str, str], token: str) -> str:
@@ -47,9 +56,19 @@ def public_url(scheme: str, host: str, path: str, query: str, forwarded_proto: s
 class TwilioWhatsApp:
     def __init__(self, http: httpx.Client | None = None) -> None:
         self._http = http or httpx.Client(timeout=30.0)
+        self._last_sent: dict[str, float] = {}
+        self._gap_lock = threading.Lock()
 
     def _auth(self) -> tuple[str, str]:
         return (settings.twilio_account_sid, settings.twilio_auth_token)
+
+    def _wait_turn(self, to: str) -> None:
+        """Keep SEND_GAP_SECONDS between messages to one number (runs in a background task)."""
+        with self._gap_lock:
+            wait = self._last_sent.get(to, 0.0) + SEND_GAP_SECONDS - time.monotonic()
+            self._last_sent[to] = time.monotonic() + max(wait, 0.0)
+        if wait > 0:
+            time.sleep(wait)
 
     def send_text(self, to: str, body: str) -> None:
         if not settings.twilio_auth_token or not settings.twilio_whatsapp_from:
@@ -59,7 +78,8 @@ class TwilioWhatsApp:
             f"{settings.twilio_api_base}/2010-04-01/Accounts/"
             f"{settings.twilio_account_sid}/Messages.json"
         )
-        for chunk in split_message(body):
+        for chunk in split_message(body, limit=TWILIO_TEXT_LIMIT):
+            self._wait_turn(to)
             response = self._http.post(
                 url,
                 auth=self._auth(),

@@ -95,7 +95,8 @@ def document_report(response: DocumentCheckResponse, web_check_running: bool = F
     if unconfirmed:
         parts.append("*Not confirmed*\n" + "\n".join(f"- {LABELS.get(c.check, c.check)}: {c.note}" for c in unconfirmed))
     if web_check_running:
-        parts.append("We are now checking the club's own website. We will send a second message when that is done.")
+        parts.append("*Next:* we are now checking the club's own website. The result comes in a second message, "
+                     "usually within 1 to 3 minutes. Please wait for it before you run another check.")
     parts.append(FOOTER)
     return "\n\n".join(parts)
 

@@ -156,7 +156,7 @@ def test_web_check_runs_in_the_background_and_sends_a_second_message(
     bodies = [body for _, body in whatsapp.sent]
     assert len(bodies) == 4  # ACK, report, web report, next-check prompt
     assert bodies[3] == conversation.NEXT
-    assert "checking the club's own website" in bodies[1]
+    assert "checking the club's own website" in bodies[1] and "1 to 3 minutes" in bodies[1]
     assert "Contradicted" in bodies[2] and "https://www.hjk.fi/contact" in bodies[2]
     assert "info@hjk.fi" in bodies[2]
 
