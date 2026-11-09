@@ -10,7 +10,7 @@ import base64
 import hashlib
 import hmac
 import logging
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 
 import httpx
 
@@ -77,15 +77,47 @@ class TwilioWhatsApp:
                 response.raise_for_status()
 
     def download_media(self, media_url: str) -> Media:
-        host = urlparse(media_url).hostname or ""
-        if host != "api.twilio.com" and not host.endswith(".twilio.com"):
+        """Fetch an attachment. Twilio answers the media URL with a redirect (307) to its CDN
+        (mms.twiliocdn.com, a pre-signed link), so redirects are followed, but only to Twilio's own
+        hosts, and the account credentials are sent to api.twilio.com only, never to the CDN."""
+        if not _is_twilio_media(media_url):
             raise ValueError("Media URL is not on Twilio")
-        response = self._http.get(media_url, auth=self._auth())
-        response.raise_for_status()
-        if len(response.content) > settings.max_media_bytes:
-            raise MediaTooLarge(media_url)
-        mime = response.headers.get("content-type", "").split(";")[0].strip()
-        return Media(data=response.content, mime_type=mime)
+        url, auth = media_url, self._auth()
+        for _ in range(MAX_MEDIA_REDIRECTS + 1):
+            with self._http.stream("GET", url, auth=auth, follow_redirects=False) as response:
+                if response.is_redirect:
+                    location = response.headers.get("location")
+                    if not location:
+                        raise ValueError("Twilio media redirect without a location")
+                    next_url = urljoin(url, location)
+                    if not _is_twilio_media(next_url):
+                        raise ValueError("Twilio media redirect left Twilio's hosts")
+                    if urlparse(next_url).hostname != urlparse(url).hostname:
+                        auth = None   # the CDN link is pre-signed; never forward the account credentials
+                    url = next_url
+                    continue
+                response.raise_for_status()
+                declared = response.headers.get("content-length", "")
+                if declared.isdigit() and int(declared) > settings.max_media_bytes:
+                    raise MediaTooLarge(media_url)
+                body = bytearray()
+                for chunk in response.iter_bytes():
+                    body += chunk
+                    if len(body) > settings.max_media_bytes:
+                        raise MediaTooLarge(media_url)
+                mime = response.headers.get("content-type", "").split(";")[0].strip()
+                return Media(data=bytes(body), mime_type=mime)
+        raise ValueError("Too many redirects while downloading Twilio media")
+
+
+MAX_MEDIA_REDIRECTS = 3
+TWILIO_MEDIA_DOMAINS = ("twilio.com", "twiliocdn.com")
+
+
+def _is_twilio_media(url: str) -> bool:
+    parsed = urlparse(url)
+    host = (parsed.hostname or "").lower()
+    return parsed.scheme == "https" and any(host == d or host.endswith("." + d) for d in TWILIO_MEDIA_DOMAINS)
 
 
 _client: TwilioWhatsApp | None = None
