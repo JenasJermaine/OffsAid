@@ -5,6 +5,8 @@
     @message-check   a chat screenshot, or pasted messages     -> wording patterns in the agent's messages
     @done            summary of everything checked in this chat; referral to KEFWA when a check raised concerns
                      (only "@done" with the @: words like "no" or "done" alone are not commands)
+    @restart         (or @start-over) clear this chat's checks and start again, after a second @restart to
+                     confirm, so a check run with wrong details is not in the summary or sent to KEFWA
 
 Transport-agnostic: the caller passes `send(text)`. The web demo (app/demo_chat.py) uses it today; the
 WhatsApp/Twilio webhooks can call handle() the same way, with the player's number as `contact`.
@@ -50,7 +52,8 @@ WELCOME = (
     "3. *@message-check*\n"
     "Check the agent's chat messages for warning signs. You send a screenshot of the chat.\n\n"
     "You can run one check or all three, in any order. When you are finished, send *@done* for a summary "
-    "of everything we found. Send *menu* at any time to see this again.\n\n"
+    "of everything we found. Send *menu* at any time to see this again. Made a mistake? Send *@restart* "
+    "to clear your checks and start again.\n\n"
     "_Privacy: if your case needs a closer look, we send it to KEFWA (Kenya Footballers Welfare Association) "
     "for review. KEFWA then receives your phone number and our findings so they can contact you._"
 )
@@ -146,6 +149,13 @@ REFERRAL_FAILED = (
 )
 START_AGAIN = "Send *menu* to check another offer."
 
+RESTART_CONFIRM = (
+    "This clears the {count} in this chat, so {them} will not be in your summary or sent to KEFWA.\n\n"
+    "Send *@restart* again to confirm. Send anything else to keep {them}."
+)
+RESTART_DONE = "Done. Your earlier checks are cleared, so you can start again."
+RESTART_NOTHING = "There is nothing to clear: you have not run any checks in this chat yet."
+
 STATUS_LINE = {
     "found": "*On the licensed agents list*",
     "possible_match": "*Possible match: some details differ*",
@@ -182,6 +192,7 @@ ALIASES = {
     **dict.fromkeys(["documentcheck", "document", "doccheck", "doc", "checkdocument", "2"], "document"),
     **dict.fromkeys(["messagecheck", "message", "messages", "chatcheck", "chat", "checkmessage", "3"], "message"),
     "done": "done",   # only as "@done" (see parse_command)
+    **dict.fromkeys(["restart", "startover", "startagain"], "restart"),   # only with @
     **dict.fromkeys(["menu", "help", "hi", "hello", "hey", "start", "habari", "mambo", "0"], "menu"),
 }
 CHECKS = ("agent", "document", "message")
@@ -189,8 +200,8 @@ CHECKS = ("agent", "document", "message")
 # is not mistaken for one. Written with @, or as menu, they always count.
 WEAK = {"hi", "hello", "hey", "habari", "mambo", "start", "help", "agent", "document", "doc",
         "message", "messages", "chat", "0", "1", "2", "3"}
-# Commands that only count when written with @, so an ordinary word cannot end the chat by surprise.
-AT_ONLY = {"done"}
+# Commands that only count when written with @, so an ordinary word cannot end or clear the chat by surprise.
+AT_ONLY = {"done", "restart", "startover", "startagain"}
 
 
 def _norm(s: str) -> str:
@@ -208,7 +219,7 @@ def parse_command(text: str, strict: bool = False) -> tuple[Optional[str], str]:
     has_at = first.lstrip().startswith("@")
     if key in ALIASES and not (strict and key in WEAK and not has_at) and not (key in AT_ONLY and not has_at):
         return ALIASES[key], rest.strip()
-    m = re.match(r"^@\s*([a-z]+(?:[\s_-]*check)?)\b[\s:,-]*(.*)$", first, re.I)
+    m = re.match(r"^@\s*([a-z]+(?:[\s_-]*(?:check|over|again))?)\b[\s:,-]*(.*)$", first, re.I)
     if m and _norm(m.group(1)) in ALIASES:
         return ALIASES[_norm(m.group(1))], (m.group(2) + "\n" + rest).strip()
     return None, t
@@ -254,6 +265,7 @@ class Conversation:
     mode: Optional[str] = None                   # agent | document | message | contact
     findings: list = field(default_factory=list)
     pending: Optional[dict] = None               # a referral waiting for the player's phone number
+    restart_asked: bool = False                  # @restart sent once; a second @restart clears the chat
     lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
 
 
@@ -269,7 +281,12 @@ def handle(conv: Conversation, text: str, file: Optional[tuple[bytes, str]], sen
 
 def _handle(conv: Conversation, text: str, file, send: Send, message_id: str) -> None:
     command, payload = parse_command(text, strict=conv.mode in ("agent", "message", "contact"))
+    # A restart needs two @restart messages in a row; anything else in between cancels it.
+    restart_asked, conv.restart_asked = conv.restart_asked, False
 
+    if command == "restart":
+        _restart(conv, send, confirmed=restart_asked)
+        return
     if conv.mode == "contact" and file is None and command not in ("menu",):
         _receive_contact(conv, text, send)
         return
@@ -453,6 +470,30 @@ def _wording_finding(outcome: dict) -> dict:
         line = "*Message check*: none of the known warning patterns were found."
     concerns = ["the agent's messages show warning patterns"] if labels else []
     return {"kind": "message", "line": line, "concerns": concerns}
+
+
+# --- starting again ----------------------------------------------------------------------
+
+
+def _restart(conv: Conversation, send: Send, confirmed: bool) -> None:
+    """@restart: forget this chat's findings, any check in progress and any referral waiting for a number.
+
+    It does not undo what already happened elsewhere: a document check's case is already stored for
+    cross-case linking, and a linking escalation may already be in KEFWA's queue. Those describe the
+    offer the player received, not the player's typing, so they stay."""
+    if not conv.findings and conv.mode is None and conv.pending is None:
+        send(RESTART_NOTHING)
+        send(WELCOME)
+        return
+    if not confirmed and conv.findings:
+        n = len(conv.findings)
+        conv.restart_asked = True
+        send(RESTART_CONFIRM.format(count=f"{n} check{'s' if n != 1 else ''}", them="it" if n == 1 else "they"))
+        return
+    # Confirmed, or nothing recorded yet (only a check or referral in progress): nothing to lose.
+    conv.findings, conv.mode, conv.pending = [], None, None
+    send(RESTART_DONE)
+    send(WELCOME)
 
 
 # --- summary and KEFWA referral ----------------------------------------------------------

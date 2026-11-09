@@ -363,7 +363,8 @@ The chat (`app/conversation.py`) is guided: a welcome menu, then each check runs
 `@agent-check` (name, licence number, phone, country; at least one of the first three),
 `@document-check` (with examples of documents to send), `@message-check` (a chat screenshot, or
 pasted messages), and `@done` for a summary of everything checked (only `@done`: a plain "done" or "no"
-is not a command). When a check raised concerns, the
+is not a command). `@restart` (or `@start-over`) clears the chat's checks after a second
+`@restart` to confirm, so a check run with wrong details is not summarised or referred to KEFWA. When a check raised concerns, the
 summary refers the case to KEFWA: players are told at the start, and again then, that KEFWA receives
 their phone number and the findings so they can contact them. Referrals and linking escalations show
 on the KEFWA review page `/admin/review` (login `ADMIN_USERNAME` / `ADMIN_PASSWORD`).

@@ -227,3 +227,55 @@ def test_agent_check_with_a_file_asks_for_text():
     assert chat.conv.findings == []          # the file was not checked
     reply = chat.say("Name: James Otieno")   # the chat now waits for the agent's details
     assert reply[0].startswith("*Agent check result*")
+
+
+# ------------------------------------------------------------------ @restart
+
+
+def test_restart_commands_need_the_at():
+    for text in ("@restart", "@Restart", "@start-over", "@start over", "@start again"):
+        assert parse_command(text)[0] == "restart", text
+    for text in ("restart", "start over", "startover"):
+        assert parse_command(text)[0] is None, text
+    assert parse_command("@restart", strict=True)[0] == "restart"
+
+
+def test_restart_asks_once_then_clears_the_wrong_check():
+    chat = Chat()
+    chat.say("@agent-check")
+    chat.say("Name: Nobody Unknown-Person")            # e.g. the wrong details
+    assert len(chat.conv.findings) == 1
+    ask = chat.say("@restart")
+    assert ask == [conv_mod.RESTART_CONFIRM.format(count="1 check", them="it")]
+    assert len(chat.conv.findings) == 1                # nothing cleared yet
+    assert chat.say("@restart") == [conv_mod.RESTART_DONE, conv_mod.WELCOME]
+    assert chat.conv.findings == [] and chat.conv.mode is None
+    assert chat.say("@done") == [conv_mod.NOTHING_YET]  # the wrong check is not summarised or referred
+
+
+def test_anything_else_cancels_the_restart():
+    chat = Chat()
+    chat.say("@message-check")
+    chat.say("Pay the clearance fee today")
+    chat.say("@restart")
+    chat.say("menu")                                   # not a second @restart
+    assert len(chat.conv.findings) == 1
+    assert chat.say("@restart")[0].startswith("This clears the 1 check")   # asks again
+
+
+def test_restart_with_nothing_recorded():
+    chat = Chat()
+    assert chat.say("@restart") == [conv_mod.RESTART_NOTHING, conv_mod.WELCOME]
+    chat.say("@agent-check")                           # a check started but not finished
+    assert chat.say("@start-over") == [conv_mod.RESTART_DONE, conv_mod.WELCOME]
+    assert chat.conv.mode is None
+
+
+def test_restart_works_while_waiting_for_a_contact_number():
+    chat = Chat()
+    chat.say("@message-check")
+    chat.say("Pay the clearance fee today")
+    chat.say("@done")                                  # demo: asks for a number for KEFWA
+    assert chat.conv.mode == "contact"
+    assert chat.say("@restart") == [conv_mod.RESTART_DONE, conv_mod.WELCOME]
+    assert chat.conv.pending is None and chat.conv.mode is None
