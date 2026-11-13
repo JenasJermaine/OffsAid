@@ -24,9 +24,9 @@ squad for the 2027 season, starting on 5 January 2027. Your visa, flights and ac
 arranged by the club.</p>
 <p>To confirm your place you must pay a registration fee of KES 25,000 to M-Pesa till number 9990002
 within 3 days of this letter. Places are limited and will be given to other players after that date.</p>
-<p>For any questions contact our agent Ms Otieno on WhatsApp +254 999 000 006.</p>
+<p>For any questions contact our agent Judith Otieno on WhatsApp +254 999 000 006.</p>
 <p>Yours sincerely,</p>
-<p><b>Ms Otieno</b><br/>Head of Recruitment, Lakeview United FC</p>
+<p><b>Judith Otieno</b><br/>Head of Recruitment, Lakeview United FC</p>
 <p style="font-size:8px;color:#999">Simulated document for the OffsAid demo. Invented club, people and numbers.</p>
 """
 

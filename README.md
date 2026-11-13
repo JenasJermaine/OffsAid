@@ -375,7 +375,9 @@ caption such as `@document-check` or `@message-check` can be added before sendin
 (`data/demo/lakeview_united_offer.pdf`, invented, from `scripts/make_demo_letter.py`) reuses a phone
 number from a simulated case KEFWA confirmed as a scam and a till from another simulated case, under a
 new club name, so on a seeded Postgres database the report shows flagged links (one with a confirmed
-fraud) and a KEFWA escalation. Chats live in memory and are lost
+fraud) and a KEFWA escalation. Its agent, Judith Otieno, also appears in "Chat with Agent Judith"
+(`data/demo/agent_judith_chat.png`, from `scripts/make_demo_chat.py`), a screenshot for `@message-check` on
+the same number and till. Chats live in memory and are lost
 on restart. Set `DEMO_CHAT_ENABLED=false` to turn the page off.
 
 ## Tests

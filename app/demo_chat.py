@@ -40,7 +40,7 @@ SAMPLES = {
     "lakeview_united_offer.pdf": ("Lakeview United offer (reuses simulated contacts)", ROOT / "data" / "demo" / "lakeview_united_offer.pdf"),
     "02_scam_selangor_gmail_mpesa.pdf": ("Selangor offer, M-Pesa fee", LETTERS / "02_scam_selangor_gmail_mpesa.pdf"),
     "01_genuine_trial_invitation_kups.pdf": ("KuPS trial invitation", LETTERS / "01_genuine_trial_invitation_kups.pdf"),
-    "08_whatsapp_screenshot_paybill.png": ("Agent chat screenshot", LETTERS / "08_whatsapp_screenshot_paybill.png"),
+    "agent_judith_chat.png": ("Chat with Agent Judith (Lakeview United)", ROOT / "data" / "demo" / "agent_judith_chat.png"),
 }
 MIME = {".pdf": "application/pdf", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg"}
 CHAT_ID = re.compile(r"^[A-Za-z0-9_-]{8,64}$")
